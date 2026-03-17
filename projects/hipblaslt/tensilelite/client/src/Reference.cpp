@@ -28,6 +28,7 @@
 #include "DataInitialization.hpp"
 #include "Tensile/TensorDescriptor_fwd.hpp"
 #include "Tensile/Utils.hpp"
+#include "TimingInstrumentation.hpp"
 #include "TypedId.hpp"
 
 #include <cstddef>
@@ -884,6 +885,8 @@ namespace TensileLite
             {
                 return false;
             }
+
+            ScopedTimer timer("solve_cpu_fast_f32");
 
             size_t indexND  = problem.freeIndices()[1].d;
             size_t strideND = problem.d().strides()[indexND];
@@ -2237,13 +2240,16 @@ namespace TensileLite
                 isDenseEnoughForFastPath = false;
             }
 
-            if(tryFastPath && isDenseEnoughForFastPath && solveCPUFastInF32(problem, inputs))
+            if(tryFastPath && isDenseEnoughForFastPath &&solveCPUFastInF32(problem, inputs))
             {
                 return;
             }
 
-            auto contractionInputsTypeId = getInputContractionInputsTypeId(problem);
-            SolveCPUTemplates(contractionInputsTypeId, problem, inputs, elementsToValidate);
+            {
+                ScopedTimer timer("solve_cpu_templates");
+                auto contractionInputsTypeId = getInputContractionInputsTypeId(problem);
+                SolveCPUTemplates(contractionInputsTypeId, problem, inputs, elementsToValidate);
+            }
         }
 
         void SolveCPU(ContractionProblem const* problem,
