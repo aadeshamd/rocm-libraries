@@ -97,9 +97,19 @@ namespace TileTransposeAddTest
 
         CommandArguments commandArgs = command->createArguments();
 
-        TensorDescriptor descA(DataType::Int32, {nx, ny}, transpose.a ? "T" : "N");
-        TensorDescriptor descB(DataType::Int32, {nx, ny}, transpose.b ? "T" : "N");
-        TensorDescriptor descC(DataType::Int32, {nx, ny}, transpose.c ? "T" : "N");
+        std::vector<size_t> sizesA{nx, ny};
+        std::vector<size_t> sizesB{nx, ny};
+        std::vector<size_t> sizesC{nx, ny};
+        if(transpose.a)
+            std::swap(sizesA[0], sizesA[1]);
+        if(transpose.b)
+            std::swap(sizesB[0], sizesB[1]);
+        if(transpose.c)
+            std::swap(sizesC[0], sizesC[1]);
+
+        TensorDescriptor descA(DataType::Int32, sizesA);
+        TensorDescriptor descB(DataType::Int32, sizesB);
+        TensorDescriptor descC(DataType::Int32, sizesC);
 
         setCommandTensorArg(commandArgs, tagTensorA, descA, d_a.get());
         setCommandTensorArg(commandArgs, tagTensorB, descB, d_b.get());
