@@ -1,6 +1,6 @@
 // MIT License
 //
-// Copyright (c) 2017-2025 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2026 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -191,7 +191,7 @@ inline void sort_keys()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(rocprim::segmented_radix_sort_keys_desc<config>(d_temporary_storage.get(),
                                                                           temporary_storage_bytes,
@@ -297,7 +297,7 @@ inline void sort_keys_empty_data()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(rocprim::segmented_radix_sort_keys_desc<config>(d_temporary_storage.get(),
                                                                           temporary_storage_bytes,
@@ -393,7 +393,7 @@ inline void sort_keys_large_segments()
 
         common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-        if(descending)
+        if constexpr(descending)
         {
             HIP_CHECK(rocprim::segmented_radix_sort_keys_desc<config>(d_temporary_storage.get(),
                                                                       temporary_storage_bytes,
@@ -526,7 +526,7 @@ inline void sort_keys_unspecified_ranges()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(rocprim::segmented_radix_sort_keys_desc<config>(d_temporary_storage.get(),
                                                                           temporary_storage_bytes,
@@ -659,7 +659,7 @@ inline void sort_pairs()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(
                     rocprim::segmented_radix_sort_pairs_desc<config>(d_temporary_storage.get(),
@@ -831,7 +831,7 @@ inline void sort_pairs_unspecified_ranges()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(
                     rocprim::segmented_radix_sort_pairs_desc<config>(d_temporary_storage.get(),
@@ -971,7 +971,7 @@ inline void sort_keys_double_buffer()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(rocprim::segmented_radix_sort_keys_desc<config>(d_temporary_storage.get(),
                                                                           temporary_storage_bytes,
@@ -1110,7 +1110,7 @@ inline void sort_pairs_double_buffer()
 
             common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
-            if(descending)
+            if constexpr(descending)
             {
                 HIP_CHECK(
                     rocprim::segmented_radix_sort_pairs_desc<config>(d_temporary_storage.get(),
