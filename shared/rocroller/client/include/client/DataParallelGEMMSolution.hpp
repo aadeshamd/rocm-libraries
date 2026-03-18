@@ -54,20 +54,11 @@ namespace rocRoller
                     auto typeD   = fromString<DataType>(solutionParams.types.typeD);
                     auto typeAcc = fromString<DataType>(solutionParams.types.typeAcc);
 
-                    auto unitStrides = [](TransposeType t) -> std::vector<size_t> {
-                        switch(t)
-                        {
-                        case TransposeType::T:
-                            return {(size_t)0, (size_t)1};
-                        case TransposeType::N:
-                            return {(size_t)1};
-                        default:
-                            Throw<FatalError>("Bad transpose option");
-                        }
-                    };
+                    // First dimension is always fastest (stride 1)
+                    auto unitStrides = std::vector<size_t>{1};
 
-                    m_tagTensorA = command->addOperation(
-                        Operations::Tensor(2, typeA, {}, unitStrides(solutionParams.types.transA)));
+                    m_tagTensorA
+                        = command->addOperation(Operations::Tensor(2, typeA, {}, unitStrides));
 
                     auto loadInputA = m_tagTensorA;
 
@@ -87,10 +78,10 @@ namespace rocRoller
                             loadInputA, solutionParams.types.pretileA, true));
                     }
 
-                    m_tagA = command->addOperation(Operations::T_Load_Tiled(loadInputA));
+                    m_tagA = command->addOperation(Operations::T_Load_Tiled(m_tagTensorA));
 
-                    m_tagTensorB = command->addOperation(
-                        Operations::Tensor(2, typeB, {}, unitStrides(solutionParams.types.transB)));
+                    m_tagTensorB
+                        = command->addOperation(Operations::Tensor(2, typeB, {}, unitStrides));
 
                     auto loadInputB = m_tagTensorB;
 
@@ -146,7 +137,7 @@ namespace rocRoller
                             2,
                             solutionParams.types.scaleTypeA,
                             {},
-                            unitStrides(solutionParams.types.transA)));
+                            unitStrides));
 
                         auto loadScaleInputA = m_tagTensorScaleA;
 
@@ -212,7 +203,7 @@ namespace rocRoller
                             2,
                             solutionParams.types.scaleTypeB,
                             {},
-                            unitStrides(solutionParams.types.transB)));
+                            unitStrides));
 
                         auto loadScaleInputB = m_tagTensorScaleB;
 
@@ -276,8 +267,25 @@ namespace rocRoller
                     auto tagLoadBeta
                         = command->addOperation(Operations::T_Load_Scalar(m_tagScalarBeta));
 
-                    auto tagAB = command->addOperation(
-                        Operations::T_Mul(mulInputA, mulInputB, typeAcc)); // A * B
+                    Operations::FreeIndex  freeDimsA, freeDimsB;
+                    Operations::BoundIndex boundDims;
+
+                    freeDimsA.ab = freeDimsA.d = 0;
+                    freeDimsB.ab = freeDimsB.d = 1;
+                    boundDims.a                = 1;
+                    boundDims.b                = 0;
+
+                    if(solutionParams.types.transA == TransposeType::T)
+                        std::swap(freeDimsA.ab, boundDims.a);
+                    if(solutionParams.types.transB == TransposeType::T)
+                        std::swap(freeDimsB.ab, boundDims.b);
+
+                    auto tagAB = command->addOperation(Operations::T_Mul(mulInputA,
+                                                                         mulInputB,
+                                                                         {freeDimsA},
+                                                                         {freeDimsB},
+                                                                         {boundDims},
+                                                                         typeAcc)); // A * B
 
                     Operations::T_Execute execute(command->getNextTag());
                     auto                  tagBetaC
@@ -663,20 +671,20 @@ namespace rocRoller
                     size_t N = problemParams.n;
                     size_t K = problemParams.k;
 
-                    TensorDescriptor descA(fromString<DataType>(problemParams.types.typeA),
-                                           {M, K},
-                                           problemParams.types.transA == TransposeType::T ? "T"
-                                                                                          : "N");
-                    TensorDescriptor descB(fromString<DataType>(problemParams.types.typeB),
-                                           {K, N},
-                                           problemParams.types.transB == TransposeType::T ? "T"
-                                                                                          : "N");
+                    std::vector<size_t> aSizes{M, K};
+                    std::vector<size_t> bSizes{K, N};
+                    if(problemParams.types.transA == TransposeType::T)
+                        std::swap(aSizes[0], aSizes[1]);
+                    if(problemParams.types.transB == TransposeType::T)
+                        std::swap(bSizes[0], bSizes[1]);
+
+                    TensorDescriptor descA(fromString<DataType>(problemParams.types.typeA), aSizes);
+                    TensorDescriptor descB(fromString<DataType>(problemParams.types.typeB), bSizes);
 
                     setCommandTensorArg(commandArgs, m_tagTensorA, descA, (float*)nullptr);
                     setCommandTensorArg(commandArgs, m_tagTensorB, descB, (float*)nullptr);
 
-                    TensorDescriptor descC(
-                        fromString<DataType>(problemParams.types.typeC), {M, N}, "N");
+                    TensorDescriptor descC(fromString<DataType>(problemParams.types.typeC), {M, N});
                     setCommandTensorArg(commandArgs, m_tagTensorC, descC, (float*)nullptr);
 
                     commandArgs.setArgument(
@@ -684,8 +692,7 @@ namespace rocRoller
                     commandArgs.setArgument(
                         m_tagScalarBeta, ArgumentType::Value, problemParams.beta);
 
-                    TensorDescriptor descD(
-                        fromString<DataType>(problemParams.types.typeD), {M, N}, "N");
+                    TensorDescriptor descD(fromString<DataType>(problemParams.types.typeD), {M, N});
                     setCommandTensorArg(commandArgs, m_tagTensorD, descD, (float*)nullptr);
 
                     if(problemParams.workgroupMappingDim != -1)
