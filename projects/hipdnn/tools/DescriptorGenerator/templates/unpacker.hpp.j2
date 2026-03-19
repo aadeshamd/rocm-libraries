@@ -7,6 +7,7 @@
 #include <hipdnn_frontend/attributes/{{ op.frontend.effective_attributes_include }}.hpp>
 #include <hipdnn_frontend/detail/DescriptorUnpackHelpers.hpp>
 #include <memory>
+#include <optional>
 #include <unordered_map>
 
 namespace hipdnn_frontend::detail
@@ -71,6 +72,21 @@ namespace hipdnn_frontend::detail
                                                {{ df.camel_name }}Raw,
                                                "{{ op.effective_error_label }} {{ df.name }}"));
     attributes.{{ df.frontend_setter_name }}(static_cast<{{ df.cpp_enum }}>({{ df.camel_name }}Raw));
+
+{% elif df.is_optional_scalar %}
+    // Unpack {{ df.name }} (optional)
+    {
+        std::optional<{{ df.cpp_type }}> {{ df.camel_name }};
+        HIPDNN_CHECK_ERROR(getDescriptorAttrOptionalScalar(opDesc,
+                                                           {{ df.attr_name }},
+                                                           {{ df.backend_type }},
+                                                           {{ df.camel_name }},
+                                                           "{{ op.effective_error_label }} {{ df.name }}"));
+        if({{ df.camel_name }}.has_value())
+        {
+            attributes.{{ df.frontend_setter_name }}(*{{ df.camel_name }});
+        }
+    }
 
 {% elif df.is_scalar %}
     // Unpack {{ df.name }}

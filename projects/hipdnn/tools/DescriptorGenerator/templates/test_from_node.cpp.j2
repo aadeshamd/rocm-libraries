@@ -209,6 +209,16 @@ TEST_F(Test{{ op.name }}OperationFromNode, NodeFactoryDelegatesCorrectly)
 {% endif %}
 {% endif %}
 {% endfor %}
+{% for tf in op.optional_tensor_fields %}
+{% if op.test_data.tensor_configs.get(tf.name) %}
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+{% endif %}
+{% endfor %}
 }
 {% if op.has_compute_data_type %}
 
@@ -274,6 +284,17 @@ TEST_F(Test{{ op.name }}OperationFromNode, SetsTensorReferences)
 {% endif %}
 {% endif %}
 {% endfor %}
+{% for tf in op.optional_tensor_fields %}
+{% if op.test_data.tensor_configs.get(tf.name) %}
+    ASSERT_NE(desc->{{ tf.getter_name }}(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+{% endif %}
+{% endfor %}
 }
 
 TEST_F(Test{{ op.name }}OperationFromNode, TensorReferencesMatchTensorMap)
@@ -282,6 +303,16 @@ TEST_F(Test{{ op.name }}OperationFromNode, TensorReferencesMatchTensorMap)
     auto desc = {{ op.class_name }}::fromNode(node, _tensorMap);
 
 {% for tf in op.required_tensor_fields %}
+{% if op.test_data.tensor_configs.get(tf.name) %}
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}(), _tensorMap[{{ uid_const }}]);
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}(), _tensorMap[{{ op.test_data.tensor_uids.get(tf.name, loop.index) }}]);
+{% endif %}
+{% endif %}
+{% endfor %}
+{% for tf in op.optional_tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
 {% if op.test_data.constants_include %}
 {% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
@@ -308,6 +339,49 @@ TEST_F(Test{{ op.name }}OperationFromNode, FailsWithMissing{{ tf.pascal_name }}T
                                HIPDNN_STATUS_INTERNAL_ERROR);
 }
 {% endfor %}
+{% if op.optional_tensor_fields %}
+
+TEST_F(Test{{ op.name }}OperationFromNode, SucceedsWithOnlyRequiredTensors)
+{
+    auto attrs = createStandard{{ op.name }}Attrs();
+{% for tf in op.optional_tensor_fields %}
+    attrs.{{ tf.uid_field }} = 0;
+{% endfor %}
+
+    NodeT node;
+    node.compute_data_type = DataType::FLOAT;
+    node.attributes.Set(attrs);
+
+    auto desc = {{ op.class_name }}::fromNode(node, _tensorMap);
+    ASSERT_NE(desc, nullptr);
+    ASSERT_TRUE(desc->isFinalized());
+
+    // Required tensor getters are non-null
+{% for tf in op.required_tensor_fields %}
+    EXPECT_NE(desc->{{ tf.getter_name }}(), nullptr);
+{% endfor %}
+    // Optional tensor getters are null
+{% for tf in op.optional_tensor_fields %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}(), nullptr);
+{% endfor %}
+}
+{% for tf in op.optional_tensor_fields %}
+
+TEST_F(Test{{ op.name }}OperationFromNode, FailsWhenOptional{{ tf.pascal_name }}UidSetButTensorMissing)
+{
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    _tensorMap.erase({{ uid_const }});
+{% else %}
+    _tensorMap.erase({{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+    auto node = createStandardNode();
+
+    ASSERT_THROW_HIPDNN_STATUS({{ op.class_name }}::fromNode(node, _tensorMap),
+                               HIPDNN_STATUS_INTERNAL_ERROR);
+}
+{% endfor %}
+{% endif %}
 
 TEST_F(Test{{ op.name }}OperationFromNode, GetTensorDescriptorsReturnsAllTensors)
 {
@@ -316,7 +390,7 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetTensorDescriptorsReturnsAllTensors
 
     auto tensors = desc->getTensorDescriptors();
     ASSERT_EQ(tensors.size(), {{ op.tensor_fields | length }});
-{% for tf in op.required_tensor_fields %}
+{% for tf in op.tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
 {% if op.test_data.constants_include %}
 {% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
@@ -412,6 +486,31 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
 {% for tf in op.required_tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
     // Verify {{ tf.name }} tensor
+    HipdnnBackendDescriptor* {{ tf.camel_name }}TensorDesc = nullptr;
+    int64_t {{ tf.camel_name }}Count = 0;
+    desc->getAttribute({{ op.operation_attr_prefix }}_{{ tf.attr_suffix }},
+                       HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                       1,
+                       &{{ tf.camel_name }}Count,
+                       static_cast<void*>(&{{ tf.camel_name }}TensorDesc));
+    ASSERT_EQ({{ tf.camel_name }}Count, 1);
+    ASSERT_NE({{ tf.camel_name }}TensorDesc, nullptr);
+    int64_t {{ tf.camel_name }}Uid = 0;
+    int64_t {{ tf.camel_name }}UidCount = 0;
+    {{ tf.camel_name }}TensorDesc->getAttribute(
+        HIPDNN_ATTR_TENSOR_UNIQUE_ID, HIPDNN_TYPE_INT64, 1, &{{ tf.camel_name }}UidCount, &{{ tf.camel_name }}Uid);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ({{ tf.camel_name }}Uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ({{ tf.camel_name }}Uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+
+{% endif %}
+{% endfor %}
+{% for tf in op.optional_tensor_fields %}
+{% if op.test_data.tensor_configs.get(tf.name) %}
+    // Verify {{ tf.name }} tensor (optional)
     HipdnnBackendDescriptor* {{ tf.camel_name }}TensorDesc = nullptr;
     int64_t {{ tf.camel_name }}Count = 0;
     desc->getAttribute({{ op.operation_attr_prefix }}_{{ tf.attr_suffix }},

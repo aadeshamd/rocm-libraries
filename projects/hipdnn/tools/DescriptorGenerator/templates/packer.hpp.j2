@@ -58,6 +58,13 @@ inline Error {{ op.frontend.packer_function }}(
         = static_cast<int64_t>(hipdnn_frontend::{{ df.frontend_converter }}(attributes.{{ df.frontend_getter }}));
     HIPDNN_CHECK_ERROR(setDescriptorAttrScalar(
         opDesc.get(), {{ df.attr_name }}, HIPDNN_TYPE_INT64, {{ df.camel_name }}, "{{ op.effective_error_label }} mode"));
+{% elif df.is_optional_scalar %}
+    if(attributes.{{ df.frontend_getter }}.has_value())
+    {
+        HIPDNN_CHECK_ERROR(setDescriptorAttrScalar(
+            opDesc.get(), {{ df.attr_name }}, {{ df.backend_type }},
+            *attributes.{{ df.frontend_getter }}, "{{ op.effective_error_label }} {{ df.name }}"));
+    }
 {% elif df.is_scalar %}
     HIPDNN_CHECK_ERROR(setDescriptorAttrScalar(
         opDesc.get(), {{ df.attr_name }}, {{ df.backend_type }}, attributes.{{ df.frontend_getter }}, "{{ op.effective_error_label }} {{ df.name }}"));

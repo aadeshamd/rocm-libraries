@@ -228,6 +228,16 @@ class DataField:
         return self.is_scalar and not self.required
 
     @property
+    def cpp_type(self) -> str:
+        """C++ type name for scalar fields."""
+        type_map = {
+            "scalar_float": "float",
+            "scalar_int64": "int64_t",
+            "bool": "bool",
+        }
+        return type_map.get(self.type, "int64_t")
+
+    @property
     def backend_type(self) -> str:
         if self.type == "mode" and self.backend_type_name:
             return self.backend_type_name
@@ -659,6 +669,10 @@ class OperationConfig:
     @property
     def scalar_fields(self) -> list[DataField]:
         return [f for f in self.data_fields if f.is_scalar]
+
+    @property
+    def optional_scalar_fields(self) -> list[DataField]:
+        return [f for f in self.data_fields if f.is_optional_scalar]
 
     @property
     def all_tensor_names(self) -> list[str]:
