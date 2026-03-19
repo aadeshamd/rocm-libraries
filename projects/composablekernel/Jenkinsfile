@@ -717,6 +717,7 @@ def cmake_build(Map conf=[:]){
         } else {
             // Smart-build enabled: skip full build, only run cmake configure
             build_cmd = ""
+            execute_cmd = ""
         }
 
         cmd = conf.get("cmd", """
