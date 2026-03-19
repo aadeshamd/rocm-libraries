@@ -19,6 +19,11 @@ add_library(
     engines/plans/RMSnorm/RMSnormPlanBuilder.cpp
     engines/plans/RMSnorm/RMSnormFwdPlan.cpp
     engines/plans/RMSnorm/RMSnormApplicabilityChecks.cpp
+    engines/plans/RMSNormBwdPlan.cpp
+    engines/plans/RMSNormBwdPlanBuilder.cpp
+)
+target_compile_definitions(
+    hip_kernel_provider_impl PRIVATE COMPONENT_NAME="hip_kernel_provider"
 )
 target_include_directories(hip_kernel_provider_impl PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
