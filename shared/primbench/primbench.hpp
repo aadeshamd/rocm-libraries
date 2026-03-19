@@ -1424,25 +1424,27 @@ private:
 namespace progress
 {
 // Column widths and formatting constants.
-static constexpr int         noise_col_width         = 5;
-static constexpr int         gpu_temp_col_width      = 6;
-static constexpr int         bytes_per_sec_col_width = 9;
-static constexpr const char* horizontal_bar          = u8"─";
+static constexpr int         noise_column_width         = 5;
+static constexpr int         gpu_temp_column_width      = 6;
+static constexpr int         bytes_per_sec_column_width = 9;
+static constexpr const char* horizontal_bar             = u8"─";
 
 /// Prints the table header for dry-run mode output.
 inline void print_dry_header(std::string_view algo_name,
-                             size_t           specialization_col_width,
-                             size_t           index_col_width,
+                             size_t           specialization_column_width,
+                             size_t           index_column_width,
                              size_t           specialization_count)
 {
-    std::string status_header    = "Status of " + std::string(algo_name);
-    size_t      status_col_width = status_header.size();
+    std::string status_header       = "Status of " + std::string(algo_name);
+    size_t      status_column_width = status_header.size();
 
-    std::cout << std::setw(status_col_width) << std::left << status_header << "  "
-              << std::setw(specialization_col_width) << std::left << "Specialization" << "  "
-              << "Index/" << specialization_count << "\n";
+    std::cout << std::setw(status_column_width) << std::left << status_header << "  "
+              << std::setw(specialization_column_width) << std::left << "Specialization" << "  "
+              << std::setw(index_column_width) << std::right
+              << ("Index/" + std::to_string(specialization_count)) << "\n";
 
-    size_t underline_width = status_col_width + 2 + specialization_col_width + 2 + index_col_width;
+    size_t underline_width
+        = status_column_width + 2 + specialization_column_width + 2 + index_column_width;
 
     for(size_t i = 0; i < underline_width; ++i)
         std::cout << horizontal_bar;
@@ -1451,26 +1453,27 @@ inline void print_dry_header(std::string_view algo_name,
 
 /// Prints the table header for algorithm progress output.
 inline void print_header(std::string_view          algo_name,
-                         size_t                    specialization_col_width,
-                         size_t                    index_col_width,
+                         size_t                    specialization_column_width,
+                         size_t                    index_column_width,
                          size_t                    specialization_count,
                          std::chrono::seconds::rep noise_timeout_secs)
 {
     std::string status_header = "Status of " + std::string(algo_name);
     std::string noisy_status  = "Noisy timed out after " + std::to_string(noise_timeout_secs) + "s";
 
-    size_t status_col_width = std::max(status_header.size(), noisy_status.size());
+    size_t status_column_width = std::max(status_header.size(), noisy_status.size());
 
-    std::cout << std::setw(status_col_width) << std::left << status_header << "  "
-              << std::setw(noise_col_width) << std::left << "Noise" << "  "
-              << std::setw(gpu_temp_col_width) << std::left << "GPU °C" << "  "
-              << std::setw(bytes_per_sec_col_width) << std::left << "Bytes/sec" << "  "
-              << std::setw(specialization_col_width) << std::left << "Specialization" << "  "
-              << "Index/" << specialization_count << "\n";
+    std::cout << std::setw(status_column_width) << std::left << status_header << "  "
+              << std::setw(noise_column_width) << std::left << "Noise" << "  "
+              << std::setw(gpu_temp_column_width) << std::left << "GPU °C" << "  "
+              << std::setw(bytes_per_sec_column_width) << std::left << "Bytes/sec" << "  "
+              << std::setw(specialization_column_width) << std::left << "Specialization" << "  "
+              << std::setw(index_column_width) << std::right
+              << ("Index/" + std::to_string(specialization_count)) << "\n";
 
-    size_t underline_width = status_col_width + 2 + noise_col_width + 2 + gpu_temp_col_width + 2
-                             + bytes_per_sec_col_width + 2 + specialization_col_width + 2
-                             + index_col_width;
+    size_t underline_width = status_column_width + 2 + noise_column_width + 2
+                             + gpu_temp_column_width + 2 + bytes_per_sec_column_width + 2
+                             + specialization_column_width + 2 + index_column_width;
 
     for(size_t i = 0; i < underline_width; ++i)
         std::cout << horizontal_bar;
@@ -1495,18 +1498,18 @@ inline void print_cooling(uint16_t gpu_temp, uint16_t max_gpu_temp)
 inline void print_dry_progress(std::string_view specialization,
                                std::string_view algo_name,
                                size_t           specialization_index,
-                               size_t           specialization_col_width,
-                               size_t           index_col_width)
+                               size_t           specialization_column_width,
+                               size_t           index_column_width)
 {
     std::ostringstream line;
 
-    std::string status_header    = "Status of " + std::string(algo_name);
-    size_t      status_col_width = status_header.size();
+    std::string status_header       = "Status of " + std::string(algo_name);
+    size_t      status_column_width = status_header.size();
 
-    line << clearline << green << std::setw(status_col_width) << std::left << "Success" << reset;
+    line << clearline << green << std::setw(status_column_width) << std::left << "Success" << reset;
 
-    line << "  " << std::setw(specialization_col_width) << std::left << specialization;
-    line << "  " << std::setw(index_col_width) << std::right << specialization_index;
+    line << "  " << std::setw(specialization_column_width) << std::left << specialization;
+    line << "  " << std::setw(index_column_width) << std::right << specialization_index;
 
     std::cout << line.str() << "\n" << std::flush;
 }
@@ -1520,8 +1523,8 @@ inline void print_progress(uint64_t         iteration,
                            std::string_view algo_name,
                            uint64_t         batch_window_size,
                            size_t           specialization_index,
-                           size_t           specialization_col_width,
-                           size_t           index_col_width,
+                           size_t           specialization_column_width,
+                           size_t           index_column_width,
                            double           elapsed_host_secs,
                            double           noise_timeout_secs,
                            double           noise_tolerance_percent,
@@ -1532,16 +1535,16 @@ inline void print_progress(uint64_t         iteration,
     std::chrono::seconds::rep secs         = noise_timeout_secs; // Casts to an integer.
     std::string               noisy_status = "Noisy timed out after " + std::to_string(secs) + "s";
 
-    size_t status_col_width = std::max(status_header.size(), noisy_status.size());
+    size_t status_column_width = std::max(status_header.size(), noisy_status.size());
 
     std::string batch_str = status_msg.empty() ? "Batch " + std::to_string(iteration) + "/"
                                                      + std::to_string(batch_window_size)
                                                : std::string(status_msg);
 
     size_t bar_width = 0;
-    if(batch_str.size() + 1 < status_col_width)
+    if(batch_str.size() + 1 < status_column_width)
     {
-        bar_width = status_col_width - batch_str.size() - 1;
+        bar_width = status_column_width - batch_str.size() - 1;
     }
 
     std::ostringstream line;
@@ -1578,8 +1581,8 @@ inline void print_progress(uint64_t         iteration,
 
     // Alignment for subsequent columns.
     size_t used = batch_str.size() + status_msg.empty() + (status_msg.empty() ? bar_width : 0);
-    if(used < status_col_width)
-        line << std::string(status_col_width - used, ' ');
+    if(used < status_column_width)
+        line << std::string(status_column_width - used, ' ');
 
     // Noise %.
     std::ostringstream percent_stream;
@@ -1595,19 +1598,19 @@ inline void print_progress(uint64_t         iteration,
 
     auto& noise_color = (noise_percent > noise_tolerance_percent) ? red : reset;
 
-    line << "  " << noise_color << std::setw(noise_col_width - sizeof('%')) << std::right
+    line << "  " << noise_color << std::setw(noise_column_width - sizeof('%')) << std::right
          << percent_stream.str() << "%" << reset;
 
     // GPU temperature.
-    line << "  " << std::setw(gpu_temp_col_width) << std::right << gpu_temp;
+    line << "  " << std::setw(gpu_temp_column_width) << std::right << gpu_temp;
 
     // Bytes/sec.
-    line << "  " << std::setw(bytes_per_sec_col_width) << std::right << std::scientific
+    line << "  " << std::setw(bytes_per_sec_column_width) << std::right << std::scientific
          << std::setprecision(2) << bytes_per_sec;
 
     // Specialization and index.
-    line << "  " << std::setw(specialization_col_width) << std::left << specialization;
-    line << "  " << std::setw(index_col_width) << std::right << specialization_index;
+    line << "  " << std::setw(specialization_column_width) << std::left << specialization;
+    line << "  " << std::setw(index_column_width) << std::right << specialization_index;
 
     // Colorized status messages.
     if(status_msg.find("Success") != std::string::npos)
@@ -2098,8 +2101,8 @@ public:
           stream_blocker&  stream_blocker,
           const settings&  settings,
           flags::FlagTag   flags,
-          size_t           specialization_col_width,
-          size_t           index_col_width,
+          size_t           specialization_column_width,
+          size_t           index_column_width,
           cache_thrasher&  cache,
           gpu_warmer&      warmer)
         : stream(stream)
@@ -2113,8 +2116,8 @@ public:
         , m_stream_blocker(stream_blocker)
         , m_settings(settings)
         , m_flags(flags)
-        , m_specialization_col_width(specialization_col_width)
-        , m_index_col_width(index_col_width)
+        , m_specialization_column_width(specialization_column_width)
+        , m_index_column_width(index_column_width)
         , m_cache(cache)
         , m_warmer(warmer)
     {}
@@ -2334,8 +2337,8 @@ private:
                                  m_algo,
                                  s.batch_window_size,
                                  m_specialization_index,
-                                 m_specialization_col_width,
-                                 m_index_col_width,
+                                 m_specialization_column_width,
+                                 m_index_column_width,
                                  elapsed_host_secs,
                                  s.noise_timeout_secs,
                                  s.noise_tolerance_percent,
@@ -2572,8 +2575,8 @@ private:
 
     flags::FlagTag m_flags;
 
-    size_t m_specialization_col_width;
-    size_t m_index_col_width;
+    size_t m_specialization_column_width;
+    size_t m_index_column_width;
 
     cache_thrasher& m_cache;
     gpu_warmer&     m_warmer;
@@ -3167,9 +3170,9 @@ public:
 
         get_logger().init(algorithm, specializations.size(), m_settings, m_flags, get_monitor());
 
-        m_specialization_col_width = compute_max_specialization_width(algorithm);
+        m_specialization_column_width = compute_max_specialization_width(algorithm);
 
-        m_index_col_width
+        m_index_column_width
             = std::string("Index/").size() + std::to_string(specializations.size()).size();
 
         print_header(algorithm);
@@ -3450,15 +3453,15 @@ private:
         if(m_settings.dry)
         {
             detail::progress::print_dry_header(algorithm,
-                                               m_specialization_col_width,
-                                               m_index_col_width,
+                                               m_specialization_column_width,
+                                               m_index_column_width,
                                                specializations.size());
         }
         else
         {
             detail::progress::print_header(algorithm,
-                                           m_specialization_col_width,
-                                           m_index_col_width,
+                                           m_specialization_column_width,
+                                           m_index_column_width,
                                            specializations.size(),
                                            m_settings.noise_timeout_secs);
         }
@@ -3500,8 +3503,8 @@ private:
                      *m_stream_blocker,
                      m_settings,
                      m_flags,
-                     m_specialization_col_width,
-                     m_index_col_width,
+                     m_specialization_column_width,
+                     m_index_column_width,
                      m_cache,
                      m_warmer);
     }
@@ -3531,8 +3534,8 @@ private:
         detail::progress::print_dry_progress(name,
                                              algo,
                                              specialization_index,
-                                             m_specialization_col_width,
-                                             m_index_col_width);
+                                             m_specialization_column_width,
+                                             m_index_column_width);
 
         get_logger().output_specialization(specialization_index,
                                            name,
@@ -3580,8 +3583,8 @@ private:
     std::unique_ptr<detail::stream_blocker>
         m_stream_blocker; ///< Stream blocker to serialize output.
 
-    size_t m_specialization_col_width; ///< Column width for specialization names.
-    size_t m_index_col_width; ///< Column width for specialization index.
+    size_t m_specialization_column_width; ///< Column width for specialization names.
+    size_t m_index_column_width; ///< Column width for specialization index.
 
     detail::cache_thrasher m_cache = detail::cache_thrasher(); ///< Cache clearing utility.
 
