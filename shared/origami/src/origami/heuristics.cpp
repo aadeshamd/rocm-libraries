@@ -31,11 +31,31 @@ void heuristic_params_t::merge_with(const heuristic_params_t& other) {
   weight_tile_total    = other.weight_tile_total;
 
   // Empirical constants
-  l2_min_hit_rate_default    = other.l2_min_hit_rate_default;
-  main_memory_load_latency   = other.main_memory_load_latency;
-  occupancy_decay_base       = other.occupancy_decay_base;
-  k_split_reduction_overhead = other.k_split_reduction_overhead;
-  k_padding_penalty          = other.k_padding_penalty;
+  main_memory_load_latency            = other.main_memory_load_latency;
+  occupancy_decay_base                = other.occupancy_decay_base;
+  mall_depth_sq                       = other.mall_depth_sq;
+  mall_cold_floor                     = other.mall_cold_floor;
+  l2_depth_sq                         = other.l2_depth_sq;
+  l2_cold_floor                       = other.l2_cold_floor;
+  l2_pollution_penalty                = other.l2_pollution_penalty;
+  l2_amp_ceiling_batched              = other.l2_amp_ceiling_batched;
+  l2_amp_ceiling_k_split              = other.l2_amp_ceiling_k_split;
+  epilogue_cycles_per_acc_read        = other.epilogue_cycles_per_acc_read;
+  epilogue_acc_read_parallelism       = other.epilogue_acc_read_parallelism;
+  epilogue_cycles_per_bounds_check    = other.epilogue_cycles_per_bounds_check;
+  epilogue_scalar_store_penalty       = other.epilogue_scalar_store_penalty;
+  epilogue_threads_per_wave           = other.epilogue_threads_per_wave;
+  epilogue_bytes_per_vectorized_store = other.epilogue_bytes_per_vectorized_store;
+  epilogue_cache_line_bytes           = other.epilogue_cache_line_bytes;
+  epilogue_workspace_bytes_per_elem   = other.epilogue_workspace_bytes_per_elem;
+  epilogue_salu_overhead              = other.epilogue_salu_overhead;
+  epilogue_l_barrier                  = other.epilogue_l_barrier;
+  epilogue_l_smem                     = other.epilogue_l_smem;
+  epilogue_k_padding_penalty          = other.epilogue_k_padding_penalty;
+  postgsu_compute_bytes               = other.postgsu_compute_bytes;
+  postgsu_kernel_launch_overhead      = other.postgsu_kernel_launch_overhead;
+  postgsu_threads_per_wg              = other.postgsu_threads_per_wg;
+  postgsu_wavefront_size              = other.postgsu_wavefront_size;
 
   // Main loop efficiency
   main_loop_efficiency = other.main_loop_efficiency;
@@ -213,9 +233,9 @@ heuristic_params_t heuristics_database_t::lookup(const problem_t& problem,
   // Apply matches in order of increasing specificity
   for (const auto& [spec, params] : matches) { result.merge_with(*params); }
 
-  /// TODO: TF32 heuristic is disabled since disadvantages outweigh benefits with memory bandwidth
-  /// modeling. MT256x256x32 kernel should be replaced with CMS kernel and new heuristic adjustment
-  /// should be added.
+  // TF32 heuristic: the 0.4/0.6 weight_tile_total penalty hurts OOB
+  // performance because it favors smaller tiles for TF32 GEMMs in ways that
+  // don't correlate with actual kernel performance on gfx950.
   // apply_tf32_heuristics(result, problem, hardware, config);
 
   return result;
@@ -244,9 +264,36 @@ void heuristics_database_t::add_entry(const heuristic_key_t& key,
   }
 }
 
+bool heuristics_database_t::has_hand_optimized_entry(hardware_t::architecture_t arch,
+                                                     data_type_t mi_dtype,
+                                                     transpose_t transA,
+                                                     transpose_t transB,
+                                                     size_t mt_m,
+                                                     size_t mt_n,
+                                                     size_t mt_k) const {
+  hand_optimized_kernel_key_t key{arch, mi_dtype, transA, transB, mt_m, mt_n, mt_k};
+  return hand_optimized_map_.find(key) != hand_optimized_map_.end();
+}
+
 void heuristics_database_t::initialize_defaults() {
   // ========================================================================
-  // HEURISTIC 1: CMS Kernel Efficiencies (gfx950)
+  // HEURISTIC 1: Problematic tile configuration (MT64x32x32)
+  // ========================================================================
+  {
+    auto key    = make_tile_key(64, 32, 32, transpose_t::N, transpose_t::N);
+    key.a_dtype = data_type_t::BFloat16;
+    key.b_dtype = data_type_t::BFloat16;
+
+    // MT64x32x32 penalty disabled: the 10x weight_tile_total costs more
+    // regressions than it prevents because it pushes the model to select
+    // alternative tiles that are often slower on gfx950.
+    // heuristic_params_t params;
+    // params.weight_tile_total = 10.0;
+    // add_entry(key, params);
+  }
+
+  // ========================================================================
+  // HEURISTIC 2: CMS Kernel Efficiencies (gfx950, BF16)
   // ========================================================================
   {
     // BF16 NT configurations

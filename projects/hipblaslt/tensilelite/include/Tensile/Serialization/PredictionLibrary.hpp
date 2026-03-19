@@ -113,12 +113,25 @@ namespace TensileLite
                                 .workgroup_mapping         = solution->sizeMapping.workGroupMapping,
                                 .cache_hints_a             = solution->sizeMapping.nonTemporalA,
                                 .cache_hints_b             = solution->sizeMapping.nonTemporalB,
+                                .grvw_a                    = solution->sizeMapping.grvwA,
+                                .grvw_b                    = solution->sizeMapping.grvwB,
+                                .gwvw_d                    = solution->sizeMapping.gwvwD,
+                                .vector_width_a            = solution->sizeMapping.VectorWidthA,
+                                .vector_width_b            = solution->sizeMapping.VectorWidthB,
                                 .workspace_size            = std::numeric_limits<size_t>::max(),
                                 .workspace_size_per_elem_c = std::numeric_limits<size_t>::max(),
-                                .global_read_vw_a          = solution->sizeMapping.grvwA,
-                                .global_read_vw_b          = solution->sizeMapping.grvwB,
-                                .store_vw                  = solution->sizeMapping.gwvwD,
                             };
+
+                            origami::tensile_params_t tp;
+                            tp.prefetch_global_read        = solution->sizeMapping.PrefetchGlobalRead;
+                            tp.direct_to_vgpr_a            = solution->sizeMapping.DirectToVgprA;
+                            tp.direct_to_vgpr_b            = solution->sizeMapping.DirectToVgprB;
+                            tp.direct_to_lds_a             = solution->sizeMapping.DirectToLdsA;
+                            tp.direct_to_lds_b             = solution->sizeMapping.DirectToLdsB;
+                            tp.num_loads_coalesced_a        = solution->sizeMapping.NumLoadsCoalescedA;
+                            tp.num_loads_coalesced_b        = solution->sizeMapping.NumLoadsCoalescedB;
+                            tp.math_clocks_unrolled_loop    = solution->sizeMapping.MathClocksUnrolledLoop;
+                            origami_config.backend = tp;
 
                             lib.origami_config_list.emplace_back(origami_config);
                             lib.origami_config_map.insert(std::make_pair(origami_config, index));

@@ -11,19 +11,17 @@
 
 namespace origami {
 
-hardware_t::hardware_t(
-    architecture_t arch,
-    size_t N_CU,
-    size_t lds_capacity,
-    size_t NUM_XCD,
-    double mem1_perf_ratio,
-    double mem2_perf_ratio,
-    double mem3_perf_ratio,
-    size_t L2_capacity,
-    double compute_clock_ghz,
-    size_t parallel_mi_cu,
-    std::array<std::tuple<double, double, double>, 4> mem_bw_per_wg_coefficients_read,
-    std::array<std::tuple<double, double, double>, 4> mem_bw_per_wg_coefficients_write)
+hardware_t::hardware_t(architecture_t arch,
+                       size_t N_CU,
+                       size_t lds_capacity,
+                       size_t NUM_XCD,
+                       double mem1_perf_ratio,
+                       double mem2_perf_ratio,
+                       double mem3_perf_ratio,
+                       size_t L2_capacity,
+                       double compute_clock_ghz,
+                       size_t parallel_mi_cu,
+                       std::tuple<double, double, double> mem_bw_per_wg_coefficients)
     : arch(arch)
     , N_CU(N_CU)
     , lds_capacity(lds_capacity)
@@ -34,49 +32,10 @@ hardware_t::hardware_t(
     , CU_per_L2(N_CU / NUM_XCD)
     , compute_clock_ghz(compute_clock_ghz)
     , parallel_mi_cu(parallel_mi_cu)
-    , mem_bw_per_wg_coefficients_read(mem_bw_per_wg_coefficients_read)
-    , mem_bw_per_wg_coefficients_write(mem_bw_per_wg_coefficients_write)
-    , NUM_XCD(NUM_XCD) {}
-
-namespace {
-std::array<std::tuple<double, double, double>, 4> vec_to_coef_array(
-    const std::vector<std::tuple<double, double, double>>& v) {
-  std::array<std::tuple<double, double, double>, 4> a = {std::make_tuple(0., 0., 0.),
-                                                         std::make_tuple(0., 0., 0.),
-                                                         std::make_tuple(0., 0., 0.),
-                                                         std::make_tuple(0., 0., 0.)};
-  for (size_t i = 0; i < 4 && i < v.size(); ++i) a[i] = v[i];
-  if (v.size() == 1)
-    for (size_t i = 1; i < 4; ++i) a[i] = v[0];
-  return a;
+    , mem_bw_per_wg_coefficients(mem_bw_per_wg_coefficients)
+    , NUM_XCD(NUM_XCD) {
+  init_per_level_bw();
 }
-}  // namespace
-
-hardware_t::hardware_t(
-    architecture_t arch,
-    size_t N_CU,
-    size_t lds_capacity,
-    size_t NUM_XCD,
-    double mem1_perf_ratio,
-    double mem2_perf_ratio,
-    double mem3_perf_ratio,
-    size_t L2_capacity,
-    double compute_clock_ghz,
-    size_t parallel_mi_cu,
-    const std::vector<std::tuple<double, double, double>>& mem_bw_per_wg_coefficients_read,
-    const std::vector<std::tuple<double, double, double>>& mem_bw_per_wg_coefficients_write)
-    : hardware_t(arch,
-                 N_CU,
-                 lds_capacity,
-                 NUM_XCD,
-                 mem1_perf_ratio,
-                 mem2_perf_ratio,
-                 mem3_perf_ratio,
-                 L2_capacity,
-                 compute_clock_ghz,
-                 parallel_mi_cu,
-                 vec_to_coef_array(mem_bw_per_wg_coefficients_read),
-                 vec_to_coef_array(mem_bw_per_wg_coefficients_write)) {}
 
 hardware_t::hardware_t(architecture_t arch,
                        size_t N_CU,
@@ -85,7 +44,7 @@ hardware_t::hardware_t(architecture_t arch,
                        size_t L2_capacity,
                        double compute_clock_ghz,
                        double memory_clock_ghz)
-    : hardware_t(
+   : hardware_t(
           arch,
           N_CU,
           lds_capacity,
@@ -96,8 +55,7 @@ hardware_t::hardware_t(architecture_t arch,
           L2_capacity,
           compute_clock_ghz,
           constants.parallel_mi_cu,
-          constants.mem_bw_per_wg_coefficients_read,
-          constants.mem_bw_per_wg_coefficients_write) {}
+          constants.mem_bw_per_wg_coefficients) {}
 
 hardware_t::hardware_t(hipDeviceProp_t properties)
     : hardware_t(get_hardware_for_properties(properties)) {}
@@ -113,9 +71,15 @@ hardware_t::hardware_t(const hardware_t& other)
     , CU_per_L2(other.CU_per_L2)
     , compute_clock_ghz(other.compute_clock_ghz)
     , parallel_mi_cu(other.parallel_mi_cu)
-    , mem_bw_per_wg_coefficients_read(other.mem_bw_per_wg_coefficients_read)
-    , mem_bw_per_wg_coefficients_write(other.mem_bw_per_wg_coefficients_write)
-    , NUM_XCD(other.NUM_XCD) {}
+    , mem_bw_per_wg_coefficients(other.mem_bw_per_wg_coefficients)
+    , NUM_XCD(other.NUM_XCD)
+    , cache_line_bytes(other.cache_line_bytes)
+    , l2_bw_read(other.l2_bw_read)
+    , l2_bw_write(other.l2_bw_write)
+    , mall_bw_read(other.mall_bw_read)
+    , mall_bw_write(other.mall_bw_write)
+    , hbm_bw_read(other.hbm_bw_read)
+    , hbm_bw_write(other.hbm_bw_write) {}
 
 hardware_t hardware_t::get_hardware_for_properties(hipDeviceProp_t properties) {
   auto arch_name = get_before_first_colon(properties.gcnArchName);
@@ -180,14 +144,9 @@ void hardware_t::print() const {
   std::cout << "Compute clock (GHz)       : " << compute_clock_ghz << "\n";
   std::cout << "Parallel MI/CU            : " << parallel_mi_cu << "\n";
   std::cout << "Number of XCDs (NUM_XCD)  : " << NUM_XCD << "\n";
-  std::cout << "mem_bw_per_wg_coefficients_read[3] (float4): "
-            << std::get<0>(mem_bw_per_wg_coefficients_read[3]) << ", "
-            << std::get<1>(mem_bw_per_wg_coefficients_read[3]) << ", "
-            << std::get<2>(mem_bw_per_wg_coefficients_read[3]) << "\n";
-  std::cout << "mem_bw_per_wg_coefficients_write[3] (float4): "
-            << std::get<0>(mem_bw_per_wg_coefficients_write[3]) << ", "
-            << std::get<1>(mem_bw_per_wg_coefficients_write[3]) << ", "
-            << std::get<2>(mem_bw_per_wg_coefficients_write[3]) << "\n\n";
+  std::cout << "mem_bw_per_wg_coefficients: " << std::get<0>(mem_bw_per_wg_coefficients) << ", "
+            << std::get<1>(mem_bw_per_wg_coefficients) << ", "
+            << std::get<2>(mem_bw_per_wg_coefficients) << "\n\n";
 
   std::cout << "------------------ Instruction Map -------------------------\n";
   // Loop over the instruction_map and print each entry
@@ -286,6 +245,87 @@ dim3_t hardware_t::get_recommended_matrix_instruction(data_type_t mi_input_type)
   }
 
   return best_dim;
+}
+
+void hardware_t::init_per_level_bw() {
+  if (arch == architecture_t::gfx950) {
+    cache_line_bytes = 64;
+
+    // ABSOLUTE per-vector-width BW coefficients: eval_bw(coef, CUs) -> B/compute-cycle.
+    // No perf_ratio needed. Coefficients derived from measured peak BW:
+    //   L2 read peak:  15.5 TB/s @ 2.2 GHz = 7045 B/cycle (float4, 256 WGs)
+    //   MALL read peak:  7.2 TB/s @ 2.2 GHz = 3273 B/cycle
+    //   HBM read peak:   6.2 TB/s @ 2.2 GHz = 2818 B/cycle
+    //   HBM write peak:  6.7 TB/s @ 2.2 GHz = 3045 B/cycle
+    // Each fractional coef (a,b,c) is scaled by the peak B/cycle for its level.
+    // [Short(2B), Float(4B), Float2(8B), Float4(16B)]
+
+    constexpr double L2_PEAK   = 7045.0;   // B/cycle from l2_bandwidth test
+    constexpr double MALL_PEAK = 3273.0;   // B/cycle from mall_bandwidth test
+    constexpr double HBM_R_PEAK = 2818.0;  // B/cycle from stream read
+    constexpr double HBM_W_PEAK = 3045.0;  // B/cycle from stream write
+
+    auto scale = [](bw_coef_t c, double s) -> bw_coef_t {
+      return std::make_tuple(std::get<0>(c) * s, std::get<1>(c) * s, std::get<2>(c) * s);
+    };
+
+    // HBM read: quadratic CU scaling (includes occupancy rolloff)
+    hbm_bw_read = {{
+      scale({-5.376e-06, 2.655e-03, 0.0}, HBM_R_PEAK),  // short @256≈930
+      scale({-3.059e-06, 2.458e-03, 0.0}, HBM_R_PEAK),  // float @256≈1212
+      scale({-7.215e-06, 4.954e-03, 0.0}, HBM_R_PEAK),  // float2 @256≈2254
+      scale({-2.228e-05, 9.609e-03, 0.0}, HBM_R_PEAK)   // float4 @256≈2818
+    }};
+
+    // HBM write: higher peak than read, different per-VW profile
+    hbm_bw_write = {{
+      scale({-1.400e-05, 5.077e-03, 0.0}, HBM_W_PEAK),
+      scale({-2.578e-05, 8.895e-03, 0.0}, HBM_W_PEAK),
+      scale({-2.727e-05, 1.060e-02, 0.0}, HBM_W_PEAK),
+      scale({-4.655e-05, 1.582e-02, 0.0}, HBM_W_PEAK)
+    }};
+
+    // L2 read: linear CU scaling (no quadratic term)
+    l2_bw_read = {{
+      scale({0.0, 6.783e-04, 0.0}, L2_PEAK),   // short @256≈1226
+      scale({0.0, 1.311e-03, 0.0}, L2_PEAK),   // float @256≈2367
+      scale({0.0, 2.198e-03, 0.0}, L2_PEAK),   // float2 @256≈3965
+      scale({0.0, 3.906e-03, 0.0}, L2_PEAK)    // float4 @256≈7045
+    }};
+    l2_bw_write = {{
+      scale({0.0, 2.202e-03, 0.0}, L2_PEAK),
+      scale({0.0, 2.455e-03, 0.0}, L2_PEAK),
+      scale({0.0, 2.604e-03, 0.0}, L2_PEAK),
+      scale({0.0, 3.906e-03, 0.0}, L2_PEAK)
+    }};
+
+    // MALL read: linear CU scaling
+    mall_bw_read = {{
+      scale({0.0, 5.355e-04, 0.0}, MALL_PEAK),  // short @256≈449
+      scale({0.0, 1.078e-03, 0.0}, MALL_PEAK),  // float @256≈903
+      scale({0.0, 2.091e-03, 0.0}, MALL_PEAK),  // float2 @256≈1752
+      scale({0.0, 3.906e-03, 0.0}, MALL_PEAK)   // float4 @256≈3273
+    }};
+    mall_bw_write = {{
+      scale({0.0, 3.216e-03, 0.0}, MALL_PEAK),
+      scale({0.0, 3.709e-03, 0.0}, MALL_PEAK),
+      scale({0.0, 3.641e-03, 0.0}, MALL_PEAK),
+      scale({0.0, 3.906e-03, 0.0}, MALL_PEAK)
+    }};
+  } else {
+    cache_line_bytes = 128;
+    // For other architectures: all vector widths use the same fractional curve.
+    auto fill = [&]() -> bw_coef_array_t {
+      auto c = mem_bw_per_wg_coefficients;
+      return {{c, c, c, c}};
+    };
+    l2_bw_read    = fill();
+    l2_bw_write   = fill();
+    mall_bw_read  = fill();
+    mall_bw_write = fill();
+    hbm_bw_read   = fill();
+    hbm_bw_write  = fill();
+  }
 }
 
 }  // namespace origami

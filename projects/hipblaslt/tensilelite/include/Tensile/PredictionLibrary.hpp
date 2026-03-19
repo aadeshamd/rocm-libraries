@@ -178,6 +178,8 @@ namespace TensileLite
                 .mi_dtype    = miDataType,
                 .a_mx_block_size = 0, // MX Data types come from rocroller
                 .b_mx_block_size = 0, // MX Data types come from rocroller
+                .a_leading_dim = problem.a().strides().size() > 1 ? problem.a().strides()[1] : 0,
+                .b_leading_dim = problem.b().strides().size() > 1 ? problem.b().strides()[1] : 0,
             };
 
             auto prediction_result = origami::rank_configs(

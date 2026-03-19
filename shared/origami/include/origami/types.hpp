@@ -35,6 +35,7 @@
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
+#include <variant>
 
 #include "origami/math.hpp"
 
@@ -70,14 +71,6 @@ enum class data_type_t : int {
   Float4,
   Count,
   None = Count
-};
-
-enum class mem_vector_width_t : size_t {
-  Short,   // 2 bytes
-  Float,   // 4 bytes
-  Float2,  // 8 bytes
-  Float4,  // 16 bytes
-  Count
 };
 
 /**
@@ -234,6 +227,17 @@ enum class transpose_t {
 };
 
 /**
+ * @brief Memory vector width categories for BW coefficient indexing.
+ */
+enum class mem_vector_width_t : size_t {
+  Short,   // 2 bytes (global_load_ushort)
+  Float,   // 4 bytes (global_load_dword)
+  Float2,  // 8 bytes (global_load_dwordx2)
+  Float4,  // 16 bytes (global_load_dwordx4)
+  Count
+};
+
+/**
  * @brief A compact 3-D dimension triple (M, N, K).
  *
  * Provides convenient accessors for common GEMM tiling parameters
@@ -266,6 +270,40 @@ struct dim3_t {
 
   /// @return Product m*n*k.
   constexpr std::size_t mnk() const noexcept { return m * n * k; }
+};
+
+/**
+ * @brief 4-dimensional size/coordinate: (k, m, n, b).
+ *
+ * Used for tile coordinates and unique tile counts across the GEMM grid.
+ */
+struct dim4_t {
+  /// K dimension (reduction / split).
+  std::size_t k = 0;
+
+  /// M dimension (rows).
+  std::size_t m = 0;
+
+  /// N dimension (columns).
+  std::size_t n = 0;
+
+  /// B dimension (batch).
+  std::size_t b = 0;
+
+  constexpr bool operator==(const dim4_t& o) const noexcept {
+    return k == o.k && m == o.m && n == o.n && b == o.b;
+  }
+
+  constexpr bool operator!=(const dim4_t& o) const noexcept { return !(*this == o); }
+
+  /// @return Product m*n.
+  constexpr std::size_t mn() const noexcept { return m * n; }
+
+  /// @return Product m*n*k.
+  constexpr std::size_t mnk() const noexcept { return m * n * k; }
+
+  /// @return Product k*m*n*b.
+  constexpr std::size_t total() const noexcept { return k * m * n * b; }
 };
 
 /**
@@ -323,7 +361,7 @@ struct runtime_options {
    */
   void update_from_env();
 
- private:
+  private:
   /**
    * @brief Default constructor that reads from environment variables.
    *
@@ -331,6 +369,93 @@ struct runtime_options {
    */
   runtime_options();
 };
+
+/**
+ * @brief Tensile/TensileLite-specific configuration parameters.
+ *
+ * Contains parameters specific to TensileLite-generated GEMM kernels,
+ * used by the Formocast simulation model. These parameters are ignored
+ * by the estimation-based prediction model.
+ */
+struct tensile_params_t {
+  /// Depth unroll factor (0 = use mt.k)
+  std::size_t depth_u = 0;
+
+  /// Global split-K factor
+  std::int16_t global_split_u = 1;
+
+  /// GSU accumulation method (0=none, 2=MultiBuffer, 3=MultiBufferSingleKernel)
+  int global_accumulation = 0;
+
+  /// Local split-K factor
+  int local_split_u = 1;
+
+  /// DirectToVGPR flags - bypass LDS for register file
+  bool direct_to_vgpr_a = false;
+  bool direct_to_vgpr_b = false;
+
+  /// DirectToLDS flags - direct global memory to LDS
+  bool direct_to_lds_a = false;
+  bool direct_to_lds_b = false;
+
+  /// Number of loads that can be coalesced
+  int num_loads_coalesced_a = 1;
+  int num_loads_coalesced_b = 1;
+
+  /// Number of waves per workgroup
+  std::size_t wave_num = 4;
+
+  /// Wave group dimensions [wave_group_m, wave_group_n]
+  int wave_group_m = 2;
+  int wave_group_n = 2;
+
+  /// Prefetch global read depth
+  int prefetch_global_read = 2;
+
+  /// Math clocks per unrolled loop iteration (0 = auto-calculate)
+  int math_clocks_unrolled_loop = 0;
+
+  /// Swizzled memory layout flags
+  bool swizzle_a = false;
+  bool swizzle_b = false;
+
+  /// Workgroup mapping XCC parameters
+  int workgroup_mapping_xcc = 0;
+  int workgroup_mapping_xcc_group = 0;
+  bool global_split_u_coalesced = false;
+  bool global_split_u_wgm_round_robin = false;
+
+  constexpr bool operator==(const tensile_params_t& o) const noexcept {
+    return depth_u == o.depth_u && global_split_u == o.global_split_u &&
+           global_accumulation == o.global_accumulation && local_split_u == o.local_split_u &&
+           direct_to_vgpr_a == o.direct_to_vgpr_a && direct_to_vgpr_b == o.direct_to_vgpr_b &&
+           direct_to_lds_a == o.direct_to_lds_a && direct_to_lds_b == o.direct_to_lds_b &&
+           num_loads_coalesced_a == o.num_loads_coalesced_a &&
+           num_loads_coalesced_b == o.num_loads_coalesced_b && wave_num == o.wave_num &&
+           wave_group_m == o.wave_group_m && wave_group_n == o.wave_group_n &&
+           prefetch_global_read == o.prefetch_global_read &&
+           math_clocks_unrolled_loop == o.math_clocks_unrolled_loop &&
+           swizzle_a == o.swizzle_a && swizzle_b == o.swizzle_b &&
+           workgroup_mapping_xcc == o.workgroup_mapping_xcc &&
+           workgroup_mapping_xcc_group == o.workgroup_mapping_xcc_group &&
+           global_split_u_coalesced == o.global_split_u_coalesced &&
+           global_split_u_wgm_round_robin == o.global_split_u_wgm_round_robin;
+  }
+
+  std::size_t hash() const {
+    return math::hash_combine(
+        depth_u, global_split_u, global_accumulation, local_split_u,
+        direct_to_vgpr_a, direct_to_vgpr_b, direct_to_lds_a, direct_to_lds_b,
+        num_loads_coalesced_a, num_loads_coalesced_b, wave_num,
+        wave_group_m, wave_group_n, prefetch_global_read, math_clocks_unrolled_loop,
+        swizzle_a, swizzle_b, workgroup_mapping_xcc, workgroup_mapping_xcc_group,
+        global_split_u_coalesced, global_split_u_wgm_round_robin);
+  }
+};
+
+/// Variant holding backend-specific parameters.
+/// std::monostate represents no backend-specific params (default).
+using backend_params_t = std::variant<std::monostate, tensile_params_t>;
 
 /**
  * @brief Full kernel configuration (tile shape + execution parameters).
@@ -362,11 +487,6 @@ struct config_t {
   std::size_t workspace_size            = 0;
   std::size_t workspace_size_per_elem_c = 0;
 
-  /// Vector width parameters.
-  std::size_t global_read_vw_a = 4;
-  std::size_t global_read_vw_b = 4;
-  std::size_t store_vw         = 4;
-
   /// Reduction strategy.
   reduction_t reduction_strategy = reduction_t::none;
 
@@ -378,23 +498,64 @@ struct config_t {
   /// Grid selection algorithm.
   grid_selection_t grid_selection = grid_selection_t::k_split_aware;
 
-  constexpr bool operator==(const config_t& o) const noexcept {
+  /// Global read vector width for matrix A (elements per load)
+  std::size_t grvw_a = 1;
+
+  /// Global read vector width for matrix B (elements per load)
+  std::size_t grvw_b = 1;
+
+  /// Global write vector width for matrix D (elements per store)
+  std::size_t gwvw_d = 1;
+
+  /// LDS load vector width for matrix A (elements per LDS read)
+  int vector_width_a = 1;
+
+  /// LDS load vector width for matrix B (elements per LDS read)
+  int vector_width_b = 1;
+
+  /// Backend-specific parameters (type should match target).
+  /// Use tensile() accessor to get/set Tensile-specific params.
+  backend_params_t backend{};
+
+  /// Get mutable reference to Tensile params. Initializes if not already set.
+  tensile_params_t& tensile() {
+    if (!std::holds_alternative<tensile_params_t>(backend)) {
+      backend = tensile_params_t{};
+    }
+    return std::get<tensile_params_t>(backend);
+  }
+
+  /// Get const reference to Tensile params. Throws if not set.
+  const tensile_params_t& tensile() const {
+    return std::get<tensile_params_t>(backend);
+  }
+
+  /// Check if Tensile params are currently set.
+  bool has_tensile_params() const noexcept {
+    return std::holds_alternative<tensile_params_t>(backend);
+  }
+
+  bool operator==(const config_t& o) const noexcept {
+    // vector_width_a/b and backend are excluded from dedup intentionally:
+    // they carry modeling-only info (Tensile params like DirectToVgpr,
+    // VectorWidth, MathClocks) that should not split otherwise-identical
+    // config entries in the config_map.
     return mt == o.mt && mi == o.mi && hand_optimized_main_loop == o.hand_optimized_main_loop &&
            cache_hints_a == o.cache_hints_a && cache_hints_b == o.cache_hints_b &&
-           workgroup_mapping == o.workgroup_mapping && global_read_vw_a == o.global_read_vw_a &&
-           global_read_vw_b == o.global_read_vw_b && store_vw == o.store_vw &&
-           prediction_mode == o.prediction_mode && target == o.target;
+           workgroup_mapping == o.workgroup_mapping && reduction_strategy == o.reduction_strategy &&
+           prediction_mode == o.prediction_mode && target == o.target && grvw_a == o.grvw_a &&
+           grvw_b == o.grvw_b && gwvw_d == o.gwvw_d;
   }
 
   std::size_t hash() const {
-    return std::hash<size_t>()(mt.m) ^ std::hash<size_t>()(mt.n) ^ std::hash<size_t>()(mt.k) ^
-           std::hash<size_t>()(mi.m) ^ std::hash<size_t>()(mi.n) ^ std::hash<size_t>()(mi.k) ^
-           std::hash<int>()(hand_optimized_main_loop) ^ std::hash<int>()(cache_hints_a) ^
-           std::hash<int>()(cache_hints_b) ^ std::hash<int>()(workgroup_mapping) ^
-           std::hash<size_t>()(global_read_vw_a) ^ std::hash<size_t>()(global_read_vw_b) ^
-           std::hash<size_t>()(store_vw) ^
-           std::hash<std::uint32_t>()(static_cast<std::uint32_t>(prediction_mode)) ^
-           std::hash<std::uint32_t>()(static_cast<std::uint32_t>(target));
+    // Matches operator== — excludes vector_width_a/b and backend from hash
+    // so config_map dedup is not broken by modeling-only parameters.
+    return math::hash_combine(
+        mt.m, mt.n, mt.k, mi.m, mi.n, mi.k,
+        hand_optimized_main_loop, cache_hints_a, cache_hints_b, workgroup_mapping,
+        static_cast<std::uint32_t>(reduction_strategy),
+        static_cast<std::uint32_t>(prediction_mode), static_cast<std::uint32_t>(target),
+        grvw_a, grvw_b, gwvw_d);
   }
 
   void validate() const {
@@ -445,6 +606,10 @@ struct problem_t {
   /// MX block size.
   std::size_t a_mx_block_size = 0;
   std::size_t b_mx_block_size = 0;
+
+  /// Leading dimensions (in elements). 0 = use default (contiguous extent).
+  std::size_t a_leading_dim = 0;
+  std::size_t b_leading_dim = 0;
 };
 
 /**
@@ -468,7 +633,7 @@ struct workgroup_mapping_t {
  *
  * Contains all the parameters needed to describe various staggerU parameters.
  */
-struct staggerU_t {
+ struct staggerU_t {
   /// StaggerU mapping size.
   std::size_t staggerUMapping = 0;
 
