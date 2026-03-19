@@ -208,6 +208,12 @@ class DataField:
         return _to_camel_case(self.name)
 
     @property
+    def pascal_name(self) -> str:
+        """Field name in PascalCase (e.g., 'relu_lower_clip' -> 'ReluLowerClip')."""
+        parts = self.name.split("_")
+        return "".join(p.capitalize() for p in parts)
+
+    @property
     def is_vector(self) -> bool:
         return self.type == "vector_int64"
 
@@ -770,6 +776,18 @@ class OperationConfig:
                             result[tf.name] = ft
                             break
         return result
+
+    @property
+    def frontend_to_tensor_field_map(self) -> dict[str, str]:
+        """Maps frontend tensor name -> backend tensor_field name.
+
+        Reverse of tensor_field_frontend_map. Used by integration test template
+        to resolve UID constant names from graph_method_params tensor names.
+        Example: 'input_0' -> 'in_0', 'output_0' -> 'out_0'.
+        """
+        return {
+            ft.name: tf_name for tf_name, ft in self.tensor_field_frontend_map.items()
+        }
 
     # --- Frontend filename computed properties ---
 

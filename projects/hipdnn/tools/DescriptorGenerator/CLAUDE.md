@@ -26,7 +26,7 @@ Adding a new operation follows this sequence:
 8. **Update CMake** — Add new source and test files to the build
 9. **Review and build** — Compile, run tests, review generated code
 10. **Extract test constants** — Replace inline test literals with named constants (see Step 10 below)
-11. **Implement integration test** — The generated integration test is a stub; implement full E2E round-trip tests (see Step 11 below)
+11. **Review integration test** — The generated integration test includes a lowering round-trip test and per-scalar preservation tests; add hand-written tests for auto-UIDs, multi-input variants, and multi-operation graphs as needed (see Step 11 below)
 
 ---
 
@@ -296,32 +296,26 @@ If the test values are only used in a single test file and are not meaningful be
 
 ---
 
-## Step 11: Implement the Integration Test
+## Step 11: Review and Extend the Integration Test
 
-**IMPORTANT**: The generated integration test (`Integration<Op>DescriptorLowering.cpp`) is a **stub** — it has the fixture and setup, but no actual test cases. You MUST implement the full E2E round-trip tests before the work is considered complete. Integration tests should use named constants (see Step 10).
+The generated integration test (`Integration<Op>DescriptorLowering.cpp`) includes:
 
-Use `tests/frontend/IntegrationConvFpropDescriptorLowering.cpp` as the reference. Each integration test should:
+- A `buildAndDeserialize` helper method on the fixture that creates tensors, calls the graph method, validates, lowers via `build_operation_graph_via_descriptors`, serializes via `hipdnnBackendGetSerializedBinaryGraph_ext`, and deserializes into a `GraphT`
+- `<Op>LoweringRoundTrip`: verifies required tensor UIDs, mode field, and required vector fields in the deserialized FlatBuffer
+- Per-optional-scalar tests (`<ScalarName>PreservedInRoundTrip`): one test per optional scalar field
 
-1. Build a frontend graph using the frontend API (e.g., `graph->conv_fprop(x, w, attrs)`)
-2. Call `graph->validate()` and `graph->build_operation_graph_via_descriptors(_handle)` to lower to backend
-3. Retrieve the serialized graph via `hipdnnBackendGetSerializedGraph_ext()`
-4. Deserialize the FlatBuffer into a `GraphT`
-5. Verify all tensor attributes (UIDs, dims, strides, data type, name)
-6. Verify the node's operation attributes (tensor UID references, padding, stride, dilation, mode, etc.)
+### Additional Hand-Written Tests
 
-### Required Test Cases
-
-At minimum, implement these two test cases (matching the ConvFprop reference):
-
-**`<Op>GraphRoundTrip`** — Full round-trip with explicit UIDs:
-- Create tensors with explicit UIDs and specific dims/strides
-- Set all operation parameters (padding, stride, etc.) with non-default values
-- Lower to backend, deserialize, and verify every field matches
+The generated tests cover the basic single-input scenario. Consider adding these as needed:
 
 **`AutoAssignedUidsPreservedInRoundTrip`** — Round-trip with auto-assigned UIDs:
 - Create tensors without setting UIDs (let the frontend auto-assign)
 - Lower to backend, deserialize
 - Verify all tensor UIDs are unique and the node references them correctly
+
+**Multi-input/ternary variants** — For operations like pointwise that have optional additional inputs (in_1, in_2), add tests exercising binary and ternary graph method overloads.
+
+**Multi-operation graphs** — If the operation commonly appears in chains (e.g., conv+bias+relu), test that multi-node graphs serialize correctly.
 
 ### Integration Test Dependencies
 
@@ -331,48 +325,9 @@ The integration test requires the frontend node type to exist. Specifically:
 - The graph method (e.g., `graph->conv_fprop()`) in `frontend/include/hipdnn_frontend/Graph.hpp`
 
 If these don't exist yet, the integration test cannot be compiled. In that case:
-- Still place the stub file in `tests/frontend/`
+- Still place the generated file in `tests/frontend/`
 - Do NOT add it to `tests/frontend/CMakeLists.txt` until the frontend types exist
 - Note in your summary that the integration test is pending frontend implementation
-
-### Example: ConvFprop Integration Test Structure
-
-```cpp
-TEST_F(IntegrationConvFpropDescriptorLowering, ConvFpropGraphRoundTrip)
-{
-    // 1. Build frontend graph
-    auto graph = std::make_shared<TestableGraph>();
-    graph->set_name("TestConvGraph")
-        .set_io_data_type(DataType::FLOAT)
-        .set_intermediate_data_type(DataType::FLOAT)
-        .set_compute_data_type(DataType::FLOAT);
-
-    auto x = std::make_shared<TensorAttributes>();
-    x->set_uid(K_TENSOR_X_UID).set_name("X").set_data_type(DataType::FLOAT);
-    x->set_dim(toVec(K_TENSOR_X_DIMS)).set_stride(toVec(K_TENSOR_X_STRIDES));
-    // ... set up w, convAttrs, call graph->conv_fprop(x, w, convAttrs)
-
-    // 2. Lower to backend
-    auto result = graph->validate();
-    ASSERT_EQ(result.code, ErrorCode::OK) << result.err_msg;
-    result = graph->build_operation_graph_via_descriptors(_handle);
-    ASSERT_EQ(result.code, ErrorCode::OK) << result.err_msg;
-
-    // 3. Retrieve and deserialize
-    auto rawDesc = graph->get_raw_graph_descriptor();
-    size_t serializedSize = 0;
-    hipdnnBackendGetSerializedGraph_ext(rawDesc, &serializedSize, nullptr);
-    std::vector<uint8_t> serializedData(serializedSize);
-    hipdnnBackendGetSerializedGraph_ext(rawDesc, &serializedSize, serializedData.data());
-    auto graphT = GetGraph(serializedData.data())->UnPack();
-
-    // 4. Verify tensors and node attributes
-    ASSERT_EQ(graphT->tensors.size(), 3u);
-    ASSERT_EQ(graphT->nodes.size(), 1u);
-    // ... verify each tensor's uid, dims, strides, data_type
-    // ... verify node's operation attributes (tensor UIDs, padding, stride, etc.)
-}
-```
 
 ---
 
@@ -672,7 +627,7 @@ Generated code and post-generation edits MUST use existing utilities rather than
 - The generated descriptor `.hpp` and `.cpp` files are complete and ready to use as-is
 - The packer `.hpp` file is complete and ready to use as-is
 - The unit test and graph test files are complete and ready to compile
-- **The integration test is a stub** — it must be implemented following the pattern above
+- The integration test now generates lowering round-trip and per-scalar tests; add operation-specific tests as needed
 - Fragment files contain comments indicating where to insert each snippet
 - Enum values (PLACEHOLDER_VALUE) must be replaced with actual numeric values following the existing numbering scheme
 - The unpacker `.hpp` file is complete and ready to use as-is

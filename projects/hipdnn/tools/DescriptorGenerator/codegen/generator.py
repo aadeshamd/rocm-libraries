@@ -343,6 +343,14 @@ class DescriptorGenerator:
             frontend_frag.write_text(content)
             written.append(f"fragments/mode_frontend_plumbing_{df.name}.txt")
 
+            # Frontend converter test fragment
+            frontend_test_frag = fragments_dir / f"mode_frontend_tests_{df.name}.txt"
+            content = self._render_mode_template(
+                "fragments/mode_frontend_tests.j2", config, df
+            )
+            frontend_test_frag.write_text(content)
+            written.append(f"fragments/mode_frontend_tests_{df.name}.txt")
+
         return written
 
     def _render_template(self, template_name: str, config: OperationConfig) -> str:

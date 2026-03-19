@@ -28,13 +28,11 @@ namespace hipdnn_frontend::detail
         opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.camel_name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor"));
     attributes.{{ ft.effective_setter_name }}({{ ft.camel_name }}Tensor);
 {% else %}
+    HIPDNN_CHECK_ERROR(unpackOptionalTensor(
+        opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.camel_name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor"));
+    if({{ ft.camel_name }}Tensor)
     {
-        auto status = unpackAndRegisterTensor(
-            opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.camel_name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor");
-        if(status.is_good())
-        {
-            attributes.{{ ft.effective_setter_name }}({{ ft.camel_name }}Tensor);
-        }
+        attributes.{{ ft.effective_setter_name }}({{ ft.camel_name }}Tensor);
     }
 {% endif %}
 
