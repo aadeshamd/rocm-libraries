@@ -338,6 +338,11 @@ class FrontendTensorConfig:
     setter_name: str = ""
 
     @property
+    def camel_name(self) -> str:
+        """Name in camelCase (e.g., 'input_0' -> 'input0')."""
+        return _to_camel_case(self.name)
+
+    @property
     def effective_enum_name(self) -> str:
         """Enum value name (default: uppercase of name)."""
         return self.enum_name or self.name.upper()

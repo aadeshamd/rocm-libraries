@@ -21,18 +21,18 @@ namespace hipdnn_frontend::detail
 {% set ft = op.tensor_field_frontend_map.get(tf.name) %}
 {% if ft %}
     // Unpack {{ ft.name }} tensor
-    std::shared_ptr<graph::TensorAttributes> {{ ft.name }}Tensor;
+    std::shared_ptr<graph::TensorAttributes> {{ ft.camel_name }}Tensor;
 {% if tf.required %}
     HIPDNN_CHECK_ERROR(unpackAndRegisterTensor(
-        opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor"));
-    attributes.{{ ft.effective_setter_name }}({{ ft.name }}Tensor);
+        opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.camel_name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor"));
+    attributes.{{ ft.effective_setter_name }}({{ ft.camel_name }}Tensor);
 {% else %}
     {
         auto status = unpackAndRegisterTensor(
-            opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor");
+            opDesc, {{ op.operation_attr_prefix }}_{{ tf.attr_suffix }}, tensorMap, {{ ft.camel_name }}Tensor, "{{ op.effective_error_label }} {{ tf.attr_suffix }} tensor");
         if(status.is_good())
         {
-            attributes.{{ ft.effective_setter_name }}({{ ft.name }}Tensor);
+            attributes.{{ ft.effective_setter_name }}({{ ft.camel_name }}Tensor);
         }
     }
 {% endif %}

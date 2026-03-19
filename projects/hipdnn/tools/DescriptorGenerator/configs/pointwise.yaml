@@ -55,25 +55,25 @@ operation:
   tensor_fields:
     - name: "in_0"
       fbs_field: "in_0_tensor_uid"
-      attr_suffix: "IN_0"
+      attr_suffix: "IN_0_EXT"
       required: true
       frontend_getter: "get_in_0()"
 
     - name: "out_0"
       fbs_field: "out_0_tensor_uid"
-      attr_suffix: "OUT_0"
+      attr_suffix: "OUT_0_EXT"
       required: true
       frontend_getter: "get_out_0()"
 
     - name: "in_1"
       fbs_field: "in_1_tensor_uid"
-      attr_suffix: "IN_1"
+      attr_suffix: "IN_1_EXT"
       required: false
       frontend_getter: "get_in_1()"
 
     - name: "in_2"
       fbs_field: "in_2_tensor_uid"
-      attr_suffix: "IN_2"
+      attr_suffix: "IN_2_EXT"
       required: false
       frontend_getter: "get_in_2()"
 
@@ -94,9 +94,9 @@ operation:
       backend_type_name: "HIPDNN_TYPE_POINTWISE_MODE"
       test_enum_value: "ADD"
       test_alt_enum_value: "MUL"
-      test_backend_value: "HIPDNN_POINTWISE_MODE_ADD"
+      test_backend_value: "HIPDNN_POINTWISE_ADD"
       test_c_type: "hipdnnPointwiseMode_t"
-      test_default_value: "HIPDNN_POINTWISE_MODE_ABS"
+      test_default_value: "HIPDNN_POINTWISE_ABS"
       # Verification: enum_def for PointwiseMode (matches existing hand-written code)
       enum_def:
         backend_header: "HipdnnPointwiseMode.h"
