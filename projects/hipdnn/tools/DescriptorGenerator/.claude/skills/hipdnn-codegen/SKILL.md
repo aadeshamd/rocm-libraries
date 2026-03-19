@@ -165,9 +165,18 @@ grep -r "HIPDNN_TYPE_" $HIPDNN_SRC/backend/include/HipdnnBackendAttributeType.h
 
 If missing, create the plumbing by hand following existing patterns (ConvMode, PointwiseMode).
 
-**4c. Generate inverse converter (REQUIRED for lift-only and full modes):**
+**4c. Place inverse converter in Types.hpp (REQUIRED for lift-only and full modes):**
 
-For each mode field with a `frontend_inverse_converter` in the YAML config, check if the function already exists in `$HIPDNN_SRC/frontend/include/hipdnn_frontend/Types.hpp`. If `enum_def` is present, the inverse converter is included in `mode_frontend_plumbing_<field>.txt` — just insert it. Otherwise, generate it by reading the existing forward converter and inverting the mapping.
+The unpacker calls the inverse converter (e.g., `fromHipdnnPointwiseMode`). It MUST exist in `Types.hpp` or the code will not compile. Check if it already exists:
+```bash
+grep "fromHipdnn" $HIPDNN_SRC/frontend/include/hipdnn_frontend/Types.hpp
+```
+
+If it does NOT exist:
+- If `enum_def` is present: the converter is in the generated `fragments/mode_frontend_plumbing_<field>.txt` under the "fromHipdnn converter" section. Insert it into `Types.hpp`.
+- If `enum_def` is absent: generate the converter by reading the existing forward converter and inverting the mapping.
+
+**Also check** `toBackend<Foo>Mode` — if it's missing too, insert it from the same fragment. The unpacker and tests may need it.
 
 ### 5. Run the Generator (MANDATORY)
 
@@ -183,6 +192,14 @@ $VENV/bin/python generate.py \
     --config configs/<operation>.yaml \
     --output-dir $OUTPUT_DIR \
     --mode $MODE
+```
+
+**For `lift-only` mode**: Also run `backend` mode to get mode enum plumbing fragments (needed for the inverse converter in `Types.hpp`):
+```bash
+$VENV/bin/python generate.py \
+    --config configs/<operation>.yaml \
+    --output-dir $OUTPUT_DIR \
+    --mode backend
 ```
 
 If the generator fails, show the error and stop.
@@ -248,7 +265,7 @@ Read each fragment file from the output and insert it into the correct shared fi
 | `fragments/operation_type_enum.txt` | `$HIPDNN_SRC/backend/include/HipdnnOperationType.h` | Before the closing brace of the enum. |
 | `fragments/node_unpack_override.txt` | Frontend node header | Add method to the node class. |
 
-**Mode enum fragments** (for `backend` or `full` mode, only when `enum_def` is present):
+**Mode enum fragments** (for ANY mode when `enum_def` is present — including `lift-only`):
 
 | Fragment | Target Files | Insertion |
 |----------|-------------|-----------|
@@ -335,9 +352,17 @@ Implement at minimum these two test cases:
 
 If the frontend node class or graph method does not exist yet (e.g., backend-only mode), skip this step but note it as pending.
 
-### 13. Build and Test
+### 13. Build and Test (MANDATORY)
 
-Build to verify everything compiles. Use the ROCm Clang toolchain:
+**You MUST build and test before reporting success.** A build verifies that all fragments were inserted, all converters exist, all includes resolve, and all types match. Skipping the build means you cannot know if the integration is correct.
+
+Before building, do a quick self-check:
+- Every function called in the unpacker exists (grep for it in the target file)
+- Every `#include` in new files points to a real header
+- Every switch case references a valid enum constant
+- CMake lists include all new source/test files
+
+Build using the ROCm Clang toolchain:
 ```bash
 cd $HIPDNN_SRC
 mkdir -p build && cd build
@@ -346,10 +371,18 @@ cmake .. -GNinja \
 ninja 2>&1 | tail -100
 ```
 
-If build succeeds, run unit tests:
+If the build fails, **read the errors and fix them**. Common issues:
+- Missing converter function in `Types.hpp` → insert from `mode_frontend_plumbing_<field>.txt`
+- Missing `#include` → add it
+- Wrong attribute name (missing `_EXT` suffix) → check `HipdnnBackendAttributeName.h`
+- Type mismatch → check the generated code against existing patterns
+
+After the build succeeds, run unit tests:
 ```bash
 ninja unit-check 2>&1 | tail -50
 ```
+
+If tests fail, diagnose and fix. Do not report success with failing tests.
 
 ### 14. Report Results
 
@@ -357,8 +390,8 @@ Summarize what was generated and placed:
 - List all files created/modified
 - Note any stubs that still need implementation (custom infer_properties, custom validation)
 - Note any fragment insertions that need manual verification (enum value ranges, CMake)
-- If build/tests passed, confirm
-- If anything failed, show the error
+- Confirm build passed and tests passed
+- If anything failed and could not be fixed, explain what and why
 
 ## Error Handling
 
