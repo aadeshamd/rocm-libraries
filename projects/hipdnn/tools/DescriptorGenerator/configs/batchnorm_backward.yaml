@@ -5,7 +5,7 @@ operation:
   fbs_generated_header: "batchnorm_backward_attributes_generated.h"
 
   descriptor_type:
-    enum_name: "HIPDNN_BACKEND_OPERATION_BATCHNORM_BACKWARD_DESCRIPTOR"
+    enum_name: "HIPDNN_BACKEND_OPERATION_BATCHNORM_BACKWARD_DESCRIPTOR_EXT"
 
   operation_attr_prefix: "HIPDNN_ATTR_OPERATION_BATCHNORM_BACKWARD"
 
@@ -69,7 +69,7 @@ operation:
   tensor_array_fields:
     - name: "peer_stats"
       fbs_field: "peer_stats_tensor_uid"
-      attr_name: "HIPDNN_ATTR_OPERATION_BATCHNORM_BWD_PEER_STATS_EXT"
+      attr_name: "HIPDNN_ATTR_OPERATION_BATCHNORM_BACKWARD_PEER_STATS_EXT"
       frontend_getter: "get_peer_stats()"
       required: false
       test_uids: [110, 111]
