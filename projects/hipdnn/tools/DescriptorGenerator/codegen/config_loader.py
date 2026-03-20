@@ -424,11 +424,10 @@ def _validate_config(config: OperationConfig) -> None:
                     file=sys.stderr,
                 )
 
-    # Warn if required tensor fields are missing from test_data.tensor_uids
+    # Error if any tensor field is missing from test_data.tensor_uids
     for tf in config.tensor_fields:
-        if tf.required and tf.name not in config.test_data.tensor_uids:
-            print(
-                f"Warning: Required tensor field '{tf.name}' missing from "
-                f"test_data.tensor_uids in operation '{config.name}'",
-                file=sys.stderr,
+        if tf.name not in config.test_data.tensor_uids:
+            raise ConfigError(
+                f"Tensor field '{tf.name}' missing from test_data.tensor_uids "
+                f"in operation '{config.name}'. All tensor fields must have explicit UIDs."
             )

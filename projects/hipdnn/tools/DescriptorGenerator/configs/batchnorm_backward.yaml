@@ -18,49 +18,49 @@ operation:
   tensor_fields:
     - name: "dy"
       fbs_field: "dy_tensor_uid"
-      attr_suffix: "DY"
+      attr_suffix: "DY_EXT"
       required: true
       frontend_getter: "get_dy()"
 
     - name: "x"
       fbs_field: "x_tensor_uid"
-      attr_suffix: "X"
+      attr_suffix: "X_EXT"
       required: true
       frontend_getter: "get_x()"
 
     - name: "scale"
       fbs_field: "scale_tensor_uid"
-      attr_suffix: "SCALE"
+      attr_suffix: "SCALE_EXT"
       required: true
       frontend_getter: "get_scale()"
 
     - name: "dx"
       fbs_field: "dx_tensor_uid"
-      attr_suffix: "DX"
+      attr_suffix: "DX_EXT"
       required: true
       frontend_getter: "get_dx()"
 
     - name: "dscale"
       fbs_field: "dscale_tensor_uid"
-      attr_suffix: "DSCALE"
+      attr_suffix: "DSCALE_EXT"
       required: true
       frontend_getter: "get_dscale()"
 
     - name: "dbias"
       fbs_field: "dbias_tensor_uid"
-      attr_suffix: "DBIAS"
+      attr_suffix: "DBIAS_EXT"
       required: true
       frontend_getter: "get_dbias()"
 
     - name: "mean"
       fbs_field: "mean_tensor_uid"
-      attr_suffix: "MEAN"
+      attr_suffix: "MEAN_EXT"
       required: false
       frontend_getter: "get_mean()"
 
     - name: "inv_variance"
       fbs_field: "inv_variance_tensor_uid"
-      attr_suffix: "INV_VARIANCE"
+      attr_suffix: "INV_VARIANCE_EXT"
       required: false
       frontend_getter: "get_inv_variance()"
 
@@ -69,7 +69,7 @@ operation:
   tensor_array_fields:
     - name: "peer_stats"
       fbs_field: "peer_stats_tensor_uid"
-      attr_name: "HIPDNN_ATTR_OPERATION_BATCHNORM_BWD_PEER_STATS"
+      attr_name: "HIPDNN_ATTR_OPERATION_BATCHNORM_BWD_PEER_STATS_EXT"
       frontend_getter: "get_peer_stats()"
       required: false
       test_uids: [110, 111]
@@ -81,7 +81,7 @@ operation:
   operation_type_enum: "HIPDNN_OPERATION_TYPE_BATCHNORM_BACKWARD"
 
   test_data:
-    tensor_uids: { dy: 60, x: 61, scale: 62, dx: 63, dscale: 64, dbias: 65 }
+    tensor_uids: { dy: 60, x: 61, scale: 62, dx: 63, dscale: 64, dbias: 65, mean: 66, inv_variance: 67 }
     tensor_configs:
       dy: { dims: [1, 64, 32, 32], strides: [65536, 1024, 32, 1] }
       x: { dims: [1, 64, 32, 32], strides: [65536, 1024, 32, 1] }
@@ -89,4 +89,6 @@ operation:
       dx: { dims: [1, 64, 32, 32], strides: [65536, 1024, 32, 1] }
       dscale: { dims: [1, 64, 1, 1], strides: [64, 1, 1, 1] }
       dbias: { dims: [1, 64, 1, 1], strides: [64, 1, 1, 1] }
+      mean: { dims: [1, 64, 1, 1], strides: [64, 1, 1, 1] }
+      inv_variance: { dims: [1, 64, 1, 1], strides: [64, 1, 1, 1] }
     field_values: {}

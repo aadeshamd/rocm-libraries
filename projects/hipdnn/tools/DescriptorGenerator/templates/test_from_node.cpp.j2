@@ -451,7 +451,7 @@ TEST_F(Test{{ op.name }}OperationFromNode, SucceedsWithOnlyRequiredTensors)
 {
     auto attrs = createStandard{{ op.name }}Attrs();
 {% for tf in op.optional_tensor_fields %}
-    attrs.{{ tf.uid_field }} = 0;
+    attrs.{{ tf.uid_field }} = flatbuffers::nullopt;
 {% endfor %}
 
     NodeT node;
