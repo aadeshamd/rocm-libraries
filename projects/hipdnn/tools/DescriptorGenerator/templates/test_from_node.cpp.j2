@@ -5,6 +5,7 @@
 #include "TestMacros.hpp"
 #include "descriptors/{{ op.class_name }}.hpp"
 #include "descriptors/NodeFactory.hpp"
+#include "descriptors/ScopedDescriptor.hpp"
 #include "descriptors/TensorDescriptor.hpp"
 #include "hipdnn_backend.h"
 
@@ -18,6 +19,8 @@
 {% endif %}
 
 #include <memory>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 using namespace hipdnn_backend;
@@ -155,6 +158,7 @@ TEST_F(Test{{ op.name }}OperationFromNode, CreatesValidFinalizedDescriptor)
     EXPECT_EQ(desc->getData().{{ op.tensor_fields[0].uid_field }}, {{ op.test_data.tensor_uids.get(op.tensor_fields[0].name, 1) }});
 {% endif %}
 }
+
 TEST_F(Test{{ op.name }}OperationFromNode, NodeFactoryDelegatesCorrectly)
 {
     auto node = createStandardNode();
@@ -439,6 +443,63 @@ TEST_F(Test{{ op.name }}OperationFromNode, BuildNodeRoundTrip)
     EXPECT_EQ(rebuiltAttrs->{{ cf.fbs_field }}, {{ cf.enum_short_type }}::{{ cf.test_enum_value }});
 {% endfor %}
 }
+{% for df in op.optional_scalar_fields %}
+{% if df.type == 'scalar_float' %}
+{% set test_val = '0.5F' %}
+{% elif df.type == 'scalar_int64' %}
+{% set test_val = '2' %}
+{% elif df.type == 'bool' %}
+{% set test_val = 'true' %}
+{% else %}
+{% set test_val = '1' %}
+{% endif %}
+
+TEST_F(Test{{ op.name }}OperationFromNode, FromNodePreserves{{ df.pascal_name }})
+{
+    auto attrs = createStandard{{ op.name }}Attrs();
+    attrs.{{ df.fbs_field }} = {{ test_val }};
+
+    NodeT node;
+    node.compute_data_type = DataType::FLOAT;
+    node.attributes.Set(attrs);
+
+    auto desc = {{ op.class_name }}::fromNode(node, _tensorMap);
+    ASSERT_NE(desc, nullptr);
+
+    EXPECT_TRUE(desc->getData().{{ df.fbs_field }}.has_value());
+{% if df.type == 'scalar_float' %}
+    EXPECT_FLOAT_EQ(desc->getData().{{ df.fbs_field }}.value(), {{ test_val }});
+{% else %}
+    EXPECT_EQ(desc->getData().{{ df.fbs_field }}.value(), {{ test_val }});
+{% endif %}
+
+    auto rebuiltNode = desc->buildNode();
+    const auto* rebuiltAttrs = rebuiltNode->attributes.As{{ op.fbs_table }}();
+    ASSERT_NE(rebuiltAttrs, nullptr);
+    ASSERT_TRUE(rebuiltAttrs->{{ df.fbs_field }}.has_value());
+{% if df.type == 'scalar_float' %}
+    EXPECT_FLOAT_EQ(rebuiltAttrs->{{ df.fbs_field }}.value(), {{ test_val }});
+{% else %}
+    EXPECT_EQ(rebuiltAttrs->{{ df.fbs_field }}.value(), {{ test_val }});
+{% endif %}
+}
+{% endfor %}
+{% if op.optional_scalar_fields %}
+
+TEST_F(Test{{ op.name }}OperationFromNode, BuildNodeOmitsUnsetOptionalScalars)
+{
+    auto node = createStandardNode();
+    auto desc = {{ op.class_name }}::fromNode(node, _tensorMap);
+
+    auto rebuiltNode = desc->buildNode();
+    const auto* rebuiltAttrs = rebuiltNode->attributes.As{{ op.fbs_table }}();
+    ASSERT_NE(rebuiltAttrs, nullptr);
+
+{% for df in op.optional_scalar_fields %}
+    EXPECT_FALSE(rebuiltAttrs->{{ df.fbs_field }}.has_value());
+{% endfor %}
+}
+{% endif %}
 {% if op.vector_fields or op.mode_fields %}
 
 TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
@@ -486,18 +547,18 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
 {% for tf in op.required_tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
     // Verify {{ tf.name }} tensor
-    HipdnnBackendDescriptor* {{ tf.camel_name }}TensorDesc = nullptr;
+    hipdnn_backend::ScopedDescriptor {{ tf.camel_name }}Scoped;
     int64_t {{ tf.camel_name }}Count = 0;
     desc->getAttribute({{ op.operation_attr_prefix }}_{{ tf.attr_suffix }},
                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
                        1,
                        &{{ tf.camel_name }}Count,
-                       static_cast<void*>(&{{ tf.camel_name }}TensorDesc));
+                       static_cast<void*>({{ tf.camel_name }}Scoped.getPtr()));
     ASSERT_EQ({{ tf.camel_name }}Count, 1);
-    ASSERT_NE({{ tf.camel_name }}TensorDesc, nullptr);
+    ASSERT_NE({{ tf.camel_name }}Scoped.get(), nullptr);
     int64_t {{ tf.camel_name }}Uid = 0;
     int64_t {{ tf.camel_name }}UidCount = 0;
-    {{ tf.camel_name }}TensorDesc->getAttribute(
+    {{ tf.camel_name }}Scoped.get()->getAttribute(
         HIPDNN_ATTR_TENSOR_UNIQUE_ID, HIPDNN_TYPE_INT64, 1, &{{ tf.camel_name }}UidCount, &{{ tf.camel_name }}Uid);
 {% if op.test_data.constants_include %}
 {% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
@@ -511,18 +572,18 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
 {% for tf in op.optional_tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
     // Verify {{ tf.name }} tensor (optional)
-    HipdnnBackendDescriptor* {{ tf.camel_name }}TensorDesc = nullptr;
+    hipdnn_backend::ScopedDescriptor {{ tf.camel_name }}Scoped;
     int64_t {{ tf.camel_name }}Count = 0;
     desc->getAttribute({{ op.operation_attr_prefix }}_{{ tf.attr_suffix }},
                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
                        1,
                        &{{ tf.camel_name }}Count,
-                       static_cast<void*>(&{{ tf.camel_name }}TensorDesc));
+                       static_cast<void*>({{ tf.camel_name }}Scoped.getPtr()));
     ASSERT_EQ({{ tf.camel_name }}Count, 1);
-    ASSERT_NE({{ tf.camel_name }}TensorDesc, nullptr);
+    ASSERT_NE({{ tf.camel_name }}Scoped.get(), nullptr);
     int64_t {{ tf.camel_name }}Uid = 0;
     int64_t {{ tf.camel_name }}UidCount = 0;
-    {{ tf.camel_name }}TensorDesc->getAttribute(
+    {{ tf.camel_name }}Scoped.get()->getAttribute(
         HIPDNN_ATTR_TENSOR_UNIQUE_ID, HIPDNN_TYPE_INT64, 1, &{{ tf.camel_name }}UidCount, &{{ tf.camel_name }}Uid);
 {% if op.test_data.constants_include %}
 {% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}

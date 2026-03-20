@@ -5,7 +5,6 @@
 #include <hip/hip_runtime.h>
 #include <memory>
 #include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include <hipdnn_data_sdk/data_objects/{{ op.fbs_generated_header }}>
@@ -174,6 +173,22 @@ TEST_F(Integration{{ op.name }}DescriptorLowering, {{ op.name }}LoweringRoundTri
     // Verify tensors
     ASSERT_GE(graphT.tensors.size(), {{ op.required_tensor_fields | length }}u);
 
+    // Verify tensor attributes
+    std::unordered_map<int64_t, const hipdnn_data_sdk::data_objects::TensorAttributesT*> tensorMap;
+    for(const auto& t : graphT.tensors)
+    {
+        tensorMap[t->uid] = t.get();
+    }
+{% for tf in op.required_tensor_fields %}
+{% set tf_upper = tf.name | upper %}
+    ASSERT_NE(tensorMap.count(K_TEST_{{ tf_upper }}_UID), 0u);
+{% if first_tc %}
+    EXPECT_EQ(tensorMap[K_TEST_{{ tf_upper }}_UID]->dims, toVec(K_TEST_DIMS));
+    EXPECT_EQ(tensorMap[K_TEST_{{ tf_upper }}_UID]->strides, toVec(K_TEST_STRIDES));
+{% endif %}
+    EXPECT_EQ(tensorMap[K_TEST_{{ tf_upper }}_UID]->data_type, DataTypeSdk::FLOAT);
+{% endfor %}
+
     // Verify operation node
     ASSERT_EQ(graphT.nodes.size(), 1u);
     auto& node = graphT.nodes[0];
@@ -189,6 +204,9 @@ TEST_F(Integration{{ op.name }}DescriptorLowering, {{ op.name }}LoweringRoundTri
 {% for tf in op.required_tensor_fields %}
     EXPECT_EQ(opNode->{{ tf.fbs_field }}, K_TEST_{{ tf.name | upper }}_UID);
 {% endfor %}
+
+    // Verify operation name preserved through lowering
+    EXPECT_EQ(node->name, "test_op");
 
 {% if op.mode_fields %}
 {% set mf = op.mode_fields[0] %}
@@ -212,16 +230,12 @@ TEST_F(Integration{{ op.name }}DescriptorLowering, {{ op.name }}LoweringRoundTri
 {% for df in op.optional_scalar_fields %}
 {% if df.type == 'scalar_float' %}
 {% set test_val = '0.5F' %}
-{% set test_val_raw = '0.5F' %}
 {% elif df.type == 'scalar_int64' %}
 {% set test_val = '2' %}
-{% set test_val_raw = '2' %}
 {% elif df.type == 'bool' %}
 {% set test_val = 'true' %}
-{% set test_val_raw = 'true' %}
 {% else %}
 {% set test_val = '1' %}
-{% set test_val_raw = '1' %}
 {% endif %}
 // Verifies that the optional {{ df.name }} attribute survives lowering round-trip.
 TEST_F(Integration{{ op.name }}DescriptorLowering, {{ df.pascal_name }}PreservedInRoundTrip)
@@ -249,9 +263,9 @@ TEST_F(Integration{{ op.name }}DescriptorLowering, {{ df.pascal_name }}Preserved
 
     ASSERT_TRUE(opNode->{{ df.fbs_field }}.has_value());
 {% if df.type == 'scalar_float' %}
-    EXPECT_FLOAT_EQ(opNode->{{ df.fbs_field }}.value(), {{ test_val_raw }});
+    EXPECT_FLOAT_EQ(opNode->{{ df.fbs_field }}.value(), {{ test_val }});
 {% else %}
-    EXPECT_EQ(opNode->{{ df.fbs_field }}.value(), {{ test_val_raw }});
+    EXPECT_EQ(opNode->{{ df.fbs_field }}.value(), {{ test_val }});
 {% endif %}
 }
 
