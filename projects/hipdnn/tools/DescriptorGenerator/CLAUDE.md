@@ -200,6 +200,23 @@ Error unpack_from_descriptor(
 
 Add the new test file to `backend/tests/CMakeLists.txt`. The cmake_entries.txt fragment (from full generation) includes the fromNode test entry.
 
+### 7f. Update Packer for Name Support
+
+The lift-only path adds `_name` and `HIPDNN_ATTR_OPERATION_NAME_EXT` handling to the descriptor, but the **existing packer** must also be updated to pack the name. Apply the code from `fragments/packer_name_addition.txt` — add the name-setting block before the `finalizeDescriptor()` call in the packer.
+
+Without this change, frontend→backend→frontend round-trips will silently lose the operation name.
+
+### 7g. Update Graph Descriptor Tests for Name
+
+The existing graph descriptor test (`TestGraphDescriptor<Op>.cpp`) must be updated to verify operation names survive the full serialization and lifting round-trip:
+
+1. Add a `const std::string& name = ""` parameter to the `createFinalized<Op>Op` helper
+2. Set the name via `setAttribute(HIPDNN_ATTR_OPERATION_NAME_EXT, ...)` before finalize
+3. Add `OperationNamePreservedInSerialization` test — verify name appears in deserialized FlatBuffer
+4. Add `OperationNameRoundTripThroughLifting` test — verify name survives full serialize → deserializeGraph → fromNode → re-serialize cycle
+
+See `TestGraphDescriptorBatchnorm.cpp` on the `batchnorm-lifting` branch as the reference for these tests.
+
 ---
 
 ## Step 8: Update CMake

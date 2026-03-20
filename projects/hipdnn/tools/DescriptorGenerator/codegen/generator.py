@@ -46,6 +46,7 @@ class DescriptorGenerator:
             "fragments/operation_unpacker_case.j2": "operation_unpacker_case.txt",
             "fragments/operation_type_enum.j2": "operation_type_enum.txt",
             "fragments/node_unpack_override.j2": "node_unpack_override.txt",
+            "fragments/packer_name_addition.j2": "packer_name_addition.txt",
         }
 
         fragments_dir = output_dir / "fragments"
@@ -160,6 +161,33 @@ class DescriptorGenerator:
                         break
             lines.append(content[from_node_start:from_node_end])
         lines.append("")
+
+        lines.append("=" * 72)
+        lines.append("# IMPORTANT: Packer Update Required")
+        lines.append("=" * 72)
+        lines.append("")
+        lines.append("# The existing packer must also pack the operation name.")
+        lines.append(f"# See fragments/packer_name_addition.txt for the code to add")
+        lines.append(
+            f"# to {config.packer_filename} before the finalizeDescriptor() call."
+        )
+        lines.append("")
+        lines.append("=" * 72)
+        lines.append("# IMPORTANT: Graph Descriptor Test Update Required")
+        lines.append("=" * 72)
+        lines.append("")
+        lines.append("# The existing graph descriptor test must be updated to verify")
+        lines.append(
+            "# operation name round-trips through graph serialization and lifting."
+        )
+        lines.append(
+            "# Add a name parameter to the createFinalized*Op helper, and add:"
+        )
+        lines.append("#   - OperationNamePreservedInSerialization test")
+        lines.append("#   - OperationNameRoundTripThroughLifting test")
+        lines.append(
+            f"# See the pointwise or batchnorm graph tests as reference patterns."
+        )
 
         return "\n".join(lines) + "\n"
 
