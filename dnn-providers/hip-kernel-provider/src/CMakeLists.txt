@@ -15,6 +15,7 @@ add_library(
     engines/plans/BatchnormPlanBuilder.cpp
     engines/plans/BatchnormFwdInferencePlan.cpp
     engines/plans/BatchnormFwdInferenceWithVariancePlan.cpp
+    engines/plans/BatchnormFwdTrainingPlan.cpp
     engines/plans/BatchnormApplicabilityChecks.cpp
 )
 target_include_directories(hip_kernel_provider_impl PUBLIC
