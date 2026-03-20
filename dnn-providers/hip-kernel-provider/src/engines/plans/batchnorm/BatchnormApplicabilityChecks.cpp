@@ -11,7 +11,7 @@
 #include "BatchnormApplicabilityChecks.hpp"
 #include "HipKernelUtils.hpp"
 
-namespace hip_kernel_provider
+namespace hip_kernel_provider::batchnorm
 {
 
 // --- Type Configuration Helpers ---
@@ -562,4 +562,4 @@ void checkBatchnormBwdActivationModeSupported(
     checkBatchnormActivationModeSupported(activAttr, true);
 }
 
-} // namespace hip_kernel_provider
+} // namespace hip_kernel_provider::batchnorm
