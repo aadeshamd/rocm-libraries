@@ -217,6 +217,22 @@ The existing graph descriptor test (`TestGraphDescriptor<Op>.cpp`) must be updat
 
 See `TestGraphDescriptorBatchnorm.cpp` on the `batchnorm-lifting` branch as the reference for these tests.
 
+### 7h. Deepen fromNode Test Coverage
+
+The generated `Test<Op>OperationFromNode.cpp` provides basic scaffolding but requires manual deepening. The generated tests only verify tensor UIDs — they do NOT verify full tensor reconstruction. Add:
+
+1. **`verifyTensorDescriptor` helper** on the test fixture that verifies UID, data_type, dims, AND strides through the `getAttribute` API (query count first with `requestedElementCount=0`, then retrieve). This proves the entire tensor object rebuilds correctly, not just its identity.
+
+2. **`GetAttributeWorksAfterFromNode`** — exhaustive test that calls `getAttribute` for EVERY attribute on the descriptor after `fromNode()`, verifying full tensor values (UID + data_type + dims + strides) for all tensors via the helper. Also verify compute data type, operation type, and operation name.
+
+3. **`SetsTensorReferencesWithFullValues`** — verify tensor data_type, dims, and strides through the direct accessor path (`desc->getXDesc()->getData().data_type`, `.dims`, `.strides`), not just UIDs.
+
+4. **Finalize validation tests** — if the descriptor has cross-field validation in `finalize()` (e.g., both-or-none constraints), add tests that exercise those constraints through `fromNode()`.
+
+5. **Pointer identity tests** — verify that `desc->getXDesc() == _tensorMap[expectedUid]` (same `shared_ptr` instance, not a copy). This proves `fromNode()` reuses tensors from the map rather than creating duplicates.
+
+**Critical rule**: Never write tests that only verify UIDs. Every test that touches a tensor must verify at minimum UID + data_type. Round-trip and getAttribute tests must verify the full quartet: UID, data_type, dims, strides. Surface-level UID-only checks give false confidence — they pass even when tensor data is corrupted or missing.
+
 ---
 
 ## Step 8: Update CMake
@@ -244,6 +260,19 @@ Review the generated code for correctness, paying attention to:
 - String utility switch cases match the enum names exactly
 - Test coverage covers all new enums
 - Factory case uses the correct descriptor type and class
+
+### Test Quality Checklist
+
+Before considering tests complete, verify:
+
+- [ ] **Full tensor verification**: All tests that access tensors verify UID + data_type + dims + strides (not just UID)
+- [ ] **getAttribute path**: `GetAttributeWorksAfterFromNode` tests every attribute via the backend API, drilling into packed tensor descriptors to verify full values
+- [ ] **Direct accessor path**: `SetsTensorReferencesWithFullValues` verifies tensor values through `getData()` for all tensors
+- [ ] **Pointer identity**: `TensorReferencesMatchTensorMap` confirms `shared_ptr` identity (not just value equality)
+- [ ] **Round-trip**: `BuildNodeRoundTrip` verifies all fields including optional tensors and tensor arrays
+- [ ] **Name E2E**: Name round-trips through both `fromNode`→`getAttribute` and graph serialize→deserialize→fromNode→re-serialize
+- [ ] **Validation constraints**: Cross-field invariants in `finalize()` are tested via `fromNode()` (e.g., both-or-none, all-or-none)
+- [ ] **Error paths**: Missing required tensors and missing-but-referenced optional tensors all tested
 
 ---
 

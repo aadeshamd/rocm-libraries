@@ -141,6 +141,47 @@ protected:
         node.attributes.Set(createStandard{{ op.name }}Attrs());
         return node;
     }
+
+    // Verifies that a packed tensor descriptor (retrieved via getAttribute) has the
+    // expected UID, data_type, dimensions, and strides.
+    static void verifyTensorDescriptor(hipdnnBackendDescriptor_t tensorDesc,
+                                       int64_t expectedUid,
+                                       hipdnnDataType_t expectedDataType,
+                                       const std::vector<int64_t>& expectedDims,
+                                       const std::vector<int64_t>& expectedStrides)
+    {
+        int64_t uid = 0;
+        int64_t uidCount = 0;
+        tensorDesc->getAttribute(
+            HIPDNN_ATTR_TENSOR_UNIQUE_ID, HIPDNN_TYPE_INT64, 1, &uidCount, &uid);
+        EXPECT_EQ(uid, expectedUid);
+
+        hipdnnDataType_t dataType = {};
+        int64_t dtCount = 0;
+        tensorDesc->getAttribute(
+            HIPDNN_ATTR_TENSOR_DATA_TYPE, HIPDNN_TYPE_DATA_TYPE, 1, &dtCount, &dataType);
+        EXPECT_EQ(dataType, expectedDataType);
+
+        int64_t dimCount = 0;
+        tensorDesc->getAttribute(
+            HIPDNN_ATTR_TENSOR_DIMENSIONS, HIPDNN_TYPE_INT64, 0, &dimCount, nullptr);
+        ASSERT_EQ(dimCount, static_cast<int64_t>(expectedDims.size()));
+        std::vector<int64_t> dims(static_cast<size_t>(dimCount));
+        int64_t actualDimCount = 0;
+        tensorDesc->getAttribute(
+            HIPDNN_ATTR_TENSOR_DIMENSIONS, HIPDNN_TYPE_INT64, dimCount, &actualDimCount, dims.data());
+        EXPECT_EQ(dims, expectedDims);
+
+        int64_t strideCount = 0;
+        tensorDesc->getAttribute(
+            HIPDNN_ATTR_TENSOR_STRIDES, HIPDNN_TYPE_INT64, 0, &strideCount, nullptr);
+        ASSERT_EQ(strideCount, static_cast<int64_t>(expectedStrides.size()));
+        std::vector<int64_t> strides(static_cast<size_t>(strideCount));
+        int64_t actualStrideCount = 0;
+        tensorDesc->getAttribute(
+            HIPDNN_ATTR_TENSOR_STRIDES, HIPDNN_TYPE_INT64, strideCount, &actualStrideCount, strides.data());
+        EXPECT_EQ(strides, expectedStrides);
+    }
 };
 
 TEST_F(Test{{ op.name }}OperationFromNode, CreatesValidFinalizedDescriptor)
@@ -327,6 +368,67 @@ TEST_F(Test{{ op.name }}OperationFromNode, TensorReferencesMatchTensorMap)
 {% endif %}
 {% endfor %}
 }
+
+TEST_F(Test{{ op.name }}OperationFromNode, SetsTensorReferencesWithFullValues)
+{
+    auto node = createStandardNode();
+    auto desc = {{ op.class_name }}::fromNode(node, _tensorMap);
+
+{% for tf in op.required_tensor_fields %}
+{% set tc = op.test_data.tensor_configs.get(tf.name) %}
+{% if tc %}
+    ASSERT_NE(desc->{{ tf.getter_name }}(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().data_type, DataType::FLOAT);
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().dims, (std::vector<int64_t>{{ '{' }}{{ tc.dims | join(', ') }}{{ '}' }}));
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().strides, (std::vector<int64_t>{{ '{' }}{{ tc.strides | join(', ') }}{{ '}' }}));
+{% else %}
+    ASSERT_NE(desc->{{ tf.getter_name }}(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().data_type, DataType::FLOAT);
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().dims, (std::vector<int64_t>{1}));
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().strides, (std::vector<int64_t>{1}));
+{% endif %}
+
+{% endfor %}
+{% for tf in op.optional_tensor_fields %}
+{% set tc = op.test_data.tensor_configs.get(tf.name) %}
+{% if tc %}
+    ASSERT_NE(desc->{{ tf.getter_name }}(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().data_type, DataType::FLOAT);
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().dims, (std::vector<int64_t>{{ '{' }}{{ tc.dims | join(', ') }}{{ '}' }}));
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().strides, (std::vector<int64_t>{{ '{' }}{{ tc.strides | join(', ') }}{{ '}' }}));
+{% else %}
+    ASSERT_NE(desc->{{ tf.getter_name }}(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ uid_const }});
+{% else %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+{% endif %}
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().data_type, DataType::FLOAT);
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().dims, (std::vector<int64_t>{1}));
+    EXPECT_EQ(desc->{{ tf.getter_name }}()->getData().strides, (std::vector<int64_t>{1}));
+{% endif %}
+
+{% endfor %}
+}
 {% for tf in op.required_tensor_fields %}
 
 TEST_F(Test{{ op.name }}OperationFromNode, FailsWithMissing{{ tf.pascal_name }}Tensor)
@@ -500,7 +602,7 @@ TEST_F(Test{{ op.name }}OperationFromNode, BuildNodeOmitsUnsetOptionalScalars)
 {% endfor %}
 }
 {% endif %}
-{% if op.vector_fields or op.mode_fields %}
+{% if op.vector_fields or op.mode_fields or op.has_compute_data_type or op.tensor_fields %}
 
 TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
 {
@@ -546,6 +648,7 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
 {% endfor %}
 {% for tf in op.required_tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
+{% set tc = op.test_data.tensor_configs.get(tf.name) %}
     // Verify {{ tf.name }} tensor
     hipdnn_backend::ScopedDescriptor {{ tf.camel_name }}Scoped;
     int64_t {{ tf.camel_name }}Count = 0;
@@ -556,21 +659,42 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
                        static_cast<void*>({{ tf.camel_name }}Scoped.getPtr()));
     ASSERT_EQ({{ tf.camel_name }}Count, 1);
     ASSERT_NE({{ tf.camel_name }}Scoped.get(), nullptr);
-    int64_t {{ tf.camel_name }}Uid = 0;
-    int64_t {{ tf.camel_name }}UidCount = 0;
-    {{ tf.camel_name }}Scoped.get()->getAttribute(
-        HIPDNN_ATTR_TENSOR_UNIQUE_ID, HIPDNN_TYPE_INT64, 1, &{{ tf.camel_name }}UidCount, &{{ tf.camel_name }}Uid);
 {% if op.test_data.constants_include %}
 {% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
-    EXPECT_EQ({{ tf.camel_name }}Uid, {{ uid_const }});
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ uid_const }}, HIPDNN_DATA_FLOAT,
+                           {{ '{' }}{{ tc.dims | join(', ') }}{{ '}' }},
+                           {{ '{' }}{{ tc.strides | join(', ') }}{{ '}' }});
 {% else %}
-    EXPECT_EQ({{ tf.camel_name }}Uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ op.test_data.tensor_uids.get(tf.name, loop.index) }}, HIPDNN_DATA_FLOAT,
+                           {{ '{' }}{{ tc.dims | join(', ') }}{{ '}' }},
+                           {{ '{' }}{{ tc.strides | join(', ') }}{{ '}' }});
+{% endif %}
+
+{% else %}
+    // Verify {{ tf.name }} tensor
+    hipdnn_backend::ScopedDescriptor {{ tf.camel_name }}Scoped;
+    int64_t {{ tf.camel_name }}Count = 0;
+    desc->getAttribute({{ op.operation_attr_prefix }}_{{ tf.attr_suffix }},
+                       HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                       1,
+                       &{{ tf.camel_name }}Count,
+                       static_cast<void*>({{ tf.camel_name }}Scoped.getPtr()));
+    ASSERT_EQ({{ tf.camel_name }}Count, 1);
+    ASSERT_NE({{ tf.camel_name }}Scoped.get(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ uid_const }}, HIPDNN_DATA_FLOAT,
+                           {1}, {1});
+{% else %}
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ op.test_data.tensor_uids.get(tf.name, loop.index) }}, HIPDNN_DATA_FLOAT,
+                           {1}, {1});
 {% endif %}
 
 {% endif %}
 {% endfor %}
 {% for tf in op.optional_tensor_fields %}
 {% if op.test_data.tensor_configs.get(tf.name) %}
+{% set tc = op.test_data.tensor_configs.get(tf.name) %}
     // Verify {{ tf.name }} tensor (optional)
     hipdnn_backend::ScopedDescriptor {{ tf.camel_name }}Scoped;
     int64_t {{ tf.camel_name }}Count = 0;
@@ -581,15 +705,35 @@ TEST_F(Test{{ op.name }}OperationFromNode, GetAttributeWorksAfterFromNode)
                        static_cast<void*>({{ tf.camel_name }}Scoped.getPtr()));
     ASSERT_EQ({{ tf.camel_name }}Count, 1);
     ASSERT_NE({{ tf.camel_name }}Scoped.get(), nullptr);
-    int64_t {{ tf.camel_name }}Uid = 0;
-    int64_t {{ tf.camel_name }}UidCount = 0;
-    {{ tf.camel_name }}Scoped.get()->getAttribute(
-        HIPDNN_ATTR_TENSOR_UNIQUE_ID, HIPDNN_TYPE_INT64, 1, &{{ tf.camel_name }}UidCount, &{{ tf.camel_name }}Uid);
 {% if op.test_data.constants_include %}
 {% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
-    EXPECT_EQ({{ tf.camel_name }}Uid, {{ uid_const }});
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ uid_const }}, HIPDNN_DATA_FLOAT,
+                           {{ '{' }}{{ tc.dims | join(', ') }}{{ '}' }},
+                           {{ '{' }}{{ tc.strides | join(', ') }}{{ '}' }});
 {% else %}
-    EXPECT_EQ({{ tf.camel_name }}Uid, {{ op.test_data.tensor_uids.get(tf.name, loop.index) }});
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ op.test_data.tensor_uids.get(tf.name, loop.index) }}, HIPDNN_DATA_FLOAT,
+                           {{ '{' }}{{ tc.dims | join(', ') }}{{ '}' }},
+                           {{ '{' }}{{ tc.strides | join(', ') }}{{ '}' }});
+{% endif %}
+
+{% else %}
+    // Verify {{ tf.name }} tensor (optional)
+    hipdnn_backend::ScopedDescriptor {{ tf.camel_name }}Scoped;
+    int64_t {{ tf.camel_name }}Count = 0;
+    desc->getAttribute({{ op.operation_attr_prefix }}_{{ tf.attr_suffix }},
+                       HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                       1,
+                       &{{ tf.camel_name }}Count,
+                       static_cast<void*>({{ tf.camel_name }}Scoped.getPtr()));
+    ASSERT_EQ({{ tf.camel_name }}Count, 1);
+    ASSERT_NE({{ tf.camel_name }}Scoped.get(), nullptr);
+{% if op.test_data.constants_include %}
+{% set uid_const = "K_TENSOR_" ~ (tf.name | upper) ~ "_UID" %}
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ uid_const }}, HIPDNN_DATA_FLOAT,
+                           {1}, {1});
+{% else %}
+    verifyTensorDescriptor({{ tf.camel_name }}Scoped.get(), {{ op.test_data.tensor_uids.get(tf.name, loop.index) }}, HIPDNN_DATA_FLOAT,
+                           {1}, {1});
 {% endif %}
 
 {% endif %}
