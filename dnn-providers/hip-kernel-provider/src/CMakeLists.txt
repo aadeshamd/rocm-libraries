@@ -19,6 +19,10 @@ add_library(
     engines/plans/RMSnorm/RMSnormPlanBuilder.cpp
     engines/plans/RMSnorm/RMSnormFwdPlan.cpp
     engines/plans/RMSnorm/RMSnormApplicabilityChecks.cpp
+    engines/plans/layernorm/LayernormApplicabilityChecks.cpp
+    engines/plans/layernorm/LayernormFwdPlan.cpp
+    engines/plans/layernorm/LayernormPlanBuilder.cpp
+    engines/plans/layernorm/LayernormUtilities.cpp
 )
 target_include_directories(hip_kernel_provider_impl PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
