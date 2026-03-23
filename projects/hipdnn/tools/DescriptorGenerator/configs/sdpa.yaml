@@ -193,10 +193,16 @@ operation:
         getter_name: "get_amax_o"
         setter_name: "set_amax_o"
     graph_method_name: "sdpa"
-    graph_return_type: "multi"
+    graph_method_params:
+      - name: "q"
+        tensor_name: "q"
+      - name: "k"
+        tensor_name: "k"
+      - name: "v"
+        tensor_name: "v"
+    graph_return_type: "array"
     graph_return_outputs:
       - "o"
-      - "stats"
     node_type_enum: "NodeType::SDPA_FPROP"
     node_attributes_union_type: "SdpaAttributes"
 
@@ -509,10 +515,62 @@ operation:
   compute_data_type_attr: "HIPDNN_ATTR_SDPA_FPROP_MATH_PREC_EXT"
 
   test_data:
-    tensor_uids: { q: 60, k: 61, v: 62, o: 63 }
+    tensor_uids:
+      q: 60
+      k: 61
+      v: 62
+      o: 63
+      attn_mask: 64
+      scale: 65
+      seq_len_q: 66
+      seq_len_kv: 67
+      seed: 68
+      offset: 69
+      dropout_mask: 70
+      dropout_scale: 71
+      page_table_k: 72
+      page_table_v: 73
+      block_mask: 74
+      sink_token: 75
+      descale_q: 76
+      descale_k: 77
+      descale_v: 78
+      descale_s: 79
+      scale_s: 80
+      scale_o: 81
+      stats: 82
+      max_output: 83
+      sum_exp: 84
+      rng_dump: 85
+      amax_s: 86
+      amax_o: 87
     tensor_configs:
       q: { dims: [1, 8, 128, 64], strides: [65536, 8192, 64, 1] }
       k: { dims: [1, 8, 128, 64], strides: [65536, 8192, 64, 1] }
       v: { dims: [1, 8, 128, 64], strides: [65536, 8192, 64, 1] }
       o: { dims: [1, 8, 128, 64], strides: [65536, 8192, 64, 1] }
+      attn_mask: { dims: [1, 1, 128, 128], strides: [16384, 16384, 128, 1] }
+      scale: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      seq_len_q: { dims: [1], strides: [1] }
+      seq_len_kv: { dims: [1], strides: [1] }
+      seed: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      offset: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      dropout_mask: { dims: [1, 8, 128, 128], strides: [131072, 16384, 128, 1] }
+      dropout_scale: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      page_table_k: { dims: [1], strides: [1] }
+      page_table_v: { dims: [1], strides: [1] }
+      block_mask: { dims: [1], strides: [1] }
+      sink_token: { dims: [1], strides: [1] }
+      descale_q: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      descale_k: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      descale_v: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      descale_s: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      scale_s: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      scale_o: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      stats: { dims: [1, 8, 128, 1], strides: [1024, 128, 1, 1] }
+      max_output: { dims: [1, 8, 128, 1], strides: [1024, 128, 1, 1] }
+      sum_exp: { dims: [1, 8, 128, 1], strides: [1024, 128, 1, 1] }
+      rng_dump: { dims: [1, 8, 128, 128], strides: [131072, 16384, 128, 1] }
+      amax_s: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
+      amax_o: { dims: [1, 1, 1, 1], strides: [1, 1, 1, 1] }
     field_values: {}
