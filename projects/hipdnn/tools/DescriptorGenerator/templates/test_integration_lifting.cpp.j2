@@ -129,6 +129,17 @@ protected:
         {{ out_name }}->set_uid(K_TEST_{{ out_tf_name | upper }}_UID)
             .set_output(true)
             .set_name("{{ out_name }}");
+{% elif op.frontend.graph_return_type == 'array' %}
+{% set out_name = op.frontend.graph_return_outputs[0] %}
+{% set out_tf_name = rmap.get(out_name, out_name) %}
+        auto results = graph->{{ op.frontend.graph_method_name }}(
+{% for param in op.frontend.graph_method_params %}
+            {{ param.name }},
+{% endfor %}
+            attrs);
+        results[0]->set_uid(K_TEST_{{ out_tf_name | upper }}_UID)
+            .set_output(true)
+            .set_name("{{ out_name }}");
 {% endif %}
 
         return graph;
@@ -365,6 +376,17 @@ TEST_F(Integration{{ op.name }}DescriptorLifting, {{ df.pascal_name }}PreservedI
 {% endfor %}
         attrs);
     {{ out_name }}->set_uid(K_TEST_{{ out_tf_name | upper }}_UID)
+        .set_output(true)
+        .set_name("{{ out_name }}");
+{% elif op.frontend.graph_return_type == 'array' %}
+{% set out_name = op.frontend.graph_return_outputs[0] %}
+{% set out_tf_name = rmap.get(out_name, out_name) %}
+    auto results = graph->{{ op.frontend.graph_method_name }}(
+{% for param in op.frontend.graph_method_params %}
+        {{ param.name }},
+{% endfor %}
+        attrs);
+    results[0]->set_uid(K_TEST_{{ out_tf_name | upper }}_UID)
         .set_output(true)
         .set_name("{{ out_name }}");
 {% endif %}

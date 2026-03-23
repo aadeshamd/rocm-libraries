@@ -15,6 +15,40 @@ operation:
     node_class: "BatchnormNode"
     attributes_class: "BatchnormAttributes"
 
+    inputs:
+      - name: "x"
+        enum_name: "X"
+        required: true
+        getter_name: "get_x"
+        setter_name: "set_x"
+      - name: "scale"
+        enum_name: "SCALE"
+        required: true
+        getter_name: "get_scale"
+        setter_name: "set_scale"
+      - name: "bias"
+        enum_name: "BIAS"
+        required: true
+        getter_name: "get_bias"
+        setter_name: "set_bias"
+    outputs:
+      - name: "y"
+        enum_name: "Y"
+        required: true
+        getter_name: "get_y"
+        setter_name: "set_y"
+    graph_method_name: "batchnorm"
+    graph_method_params:
+      - name: "x"
+        tensor_name: "x"
+      - name: "scale"
+        tensor_name: "scale"
+      - name: "bias"
+        tensor_name: "bias"
+    graph_return_type: "array"
+    graph_return_outputs:
+      - "y"
+
   tensor_fields:
     - name: "x"
       fbs_field: "x_tensor_uid"

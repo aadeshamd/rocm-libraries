@@ -15,6 +15,40 @@ operation:
     node_class: "BatchnormBackwardNode"
     attributes_class: "BatchnormBackwardAttributes"
 
+    inputs:
+      - name: "dy"
+        enum_name: "DY"
+        required: true
+        getter_name: "get_dy"
+        setter_name: "set_dy"
+      - name: "x"
+        enum_name: "X"
+        required: true
+        getter_name: "get_x"
+        setter_name: "set_x"
+      - name: "scale"
+        enum_name: "SCALE"
+        required: true
+        getter_name: "get_scale"
+        setter_name: "set_scale"
+    outputs:
+      - name: "dx"
+        enum_name: "DX"
+        required: true
+        getter_name: "get_dx"
+        setter_name: "set_dx"
+    graph_method_name: "batchnorm_backward"
+    graph_method_params:
+      - name: "dy"
+        tensor_name: "dy"
+      - name: "x"
+        tensor_name: "x"
+      - name: "scale"
+        tensor_name: "scale"
+    graph_return_type: "array"
+    graph_return_outputs:
+      - "dx"
+
   tensor_fields:
     - name: "dy"
       fbs_field: "dy_tensor_uid"

@@ -152,6 +152,7 @@ def _preview_files(config, mode: str) -> list[str]:
         f"backend/tests/descriptors/{config.test_graph_filename}",
         f"backend/tests/descriptors/{config.test_from_node_filename}",
         f"tests/frontend/{config.test_integration_filename}",
+        f"tests/frontend/{config.test_integration_lifting_filename}",
     ]
     backend_fragments = [
         "fragments/attribute_enum_block.txt",
@@ -186,6 +187,7 @@ def _preview_files(config, mode: str) -> list[str]:
     lift_files = [
         f"frontend/include/hipdnn_frontend/detail/{config.unpacker_filename}",
         f"backend/tests/descriptors/{config.test_from_node_filename}",
+        f"tests/frontend/{config.test_integration_lifting_filename}",
     ]
     lift_fragments = [
         "fragments/node_factory_case.txt",
@@ -193,6 +195,7 @@ def _preview_files(config, mode: str) -> list[str]:
         "fragments/operation_type_enum.txt",
         "fragments/node_unpack_override.txt",
         "fragments/descriptor_lifting_additions.txt",
+        "fragments/packer_name_addition.txt",
     ]
 
     if mode == MODE_BACKEND:
@@ -209,6 +212,14 @@ def _preview_files(config, mode: str) -> list[str]:
         )
     elif mode == MODE_LIFT_ONLY:
         files = lift_files + lift_fragments
+
+    # Mode enum files (dynamic based on config)
+    if mode in (MODE_BACKEND, MODE_FULL):
+        for df in config.generatable_mode_fields:
+            files.append(f"backend/include/{df.enum_def.backend_header}")
+            files.append(f"fragments/mode_backend_plumbing_{df.name}.txt")
+            files.append(f"fragments/mode_frontend_plumbing_{df.name}.txt")
+            files.append(f"fragments/mode_frontend_tests_{df.name}.txt")
 
     return files
 

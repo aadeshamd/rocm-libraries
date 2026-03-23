@@ -15,6 +15,33 @@ operation:
     node_class: "MatmulNode"
     attributes_class: "MatmulAttributes"
 
+    inputs:
+      - name: "a"
+        enum_name: "A"
+        required: true
+        getter_name: "get_a"
+        setter_name: "set_a"
+      - name: "b"
+        enum_name: "B"
+        required: true
+        getter_name: "get_b"
+        setter_name: "set_b"
+    outputs:
+      - name: "c"
+        enum_name: "C"
+        required: true
+        getter_name: "get_c"
+        setter_name: "set_c"
+    graph_method_name: "matmul"
+    graph_method_params:
+      - name: "a"
+        tensor_name: "a"
+      - name: "b"
+        tensor_name: "b"
+    graph_return_type: "single"
+    graph_return_outputs:
+      - "c"
+
   tensor_fields:
     - name: "a"
       fbs_field: "a_tensor_uid"

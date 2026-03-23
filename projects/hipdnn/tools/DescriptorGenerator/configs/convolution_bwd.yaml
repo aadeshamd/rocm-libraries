@@ -15,6 +15,33 @@ operation:
     node_class: "ConvolutionDgradNode"
     attributes_class: "ConvDgradAttributes"
 
+    inputs:
+      - name: "dy"
+        enum_name: "DY"
+        required: true
+        getter_name: "get_dy"
+        setter_name: "set_dy"
+      - name: "w"
+        enum_name: "W"
+        required: true
+        getter_name: "get_w"
+        setter_name: "set_w"
+    outputs:
+      - name: "dx"
+        enum_name: "DX"
+        required: true
+        getter_name: "get_dx"
+        setter_name: "set_dx"
+    graph_method_name: "conv_dgrad"
+    graph_method_params:
+      - name: "dy"
+        tensor_name: "dy"
+      - name: "w"
+        tensor_name: "w"
+    graph_return_type: "single"
+    graph_return_outputs:
+      - "dx"
+
   tensor_fields:
     - name: "dy"
       fbs_field: "dy_tensor_uid"

@@ -15,6 +15,61 @@ operation:
     node_class: "BatchnormInferenceNodeVarianceExt"
     attributes_class: "BatchnormInferenceAttributesVarianceExt"
 
+    inputs:
+      - name: "x"
+        enum_name: "X"
+        required: true
+        getter_name: "get_x"
+        setter_name: "set_x"
+      - name: "mean"
+        enum_name: "MEAN"
+        required: true
+        getter_name: "get_mean"
+        setter_name: "set_mean"
+      - name: "variance"
+        enum_name: "VARIANCE"
+        required: true
+        getter_name: "get_variance"
+        setter_name: "set_variance"
+      - name: "scale"
+        enum_name: "SCALE"
+        required: true
+        getter_name: "get_scale"
+        setter_name: "set_scale"
+      - name: "bias"
+        enum_name: "BIAS"
+        required: true
+        getter_name: "get_bias"
+        setter_name: "set_bias"
+      - name: "epsilon"
+        enum_name: "EPSILON"
+        required: true
+        getter_name: "get_epsilon"
+        setter_name: "set_epsilon"
+    outputs:
+      - name: "y"
+        enum_name: "Y"
+        required: true
+        getter_name: "get_y"
+        setter_name: "set_y"
+    graph_method_name: "batchnorm_inference_variance_ext"
+    graph_method_params:
+      - name: "x"
+        tensor_name: "x"
+      - name: "mean"
+        tensor_name: "mean"
+      - name: "variance"
+        tensor_name: "variance"
+      - name: "scale"
+        tensor_name: "scale"
+      - name: "bias"
+        tensor_name: "bias"
+      - name: "epsilon"
+        tensor_name: "epsilon"
+    graph_return_type: "single"
+    graph_return_outputs:
+      - "y"
+
   tensor_fields:
     - name: "x"
       fbs_field: "x_tensor_uid"
