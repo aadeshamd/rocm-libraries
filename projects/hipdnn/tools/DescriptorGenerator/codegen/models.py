@@ -641,6 +641,18 @@ class OperationConfig:
         return f"Integration{self.name}DescriptorLowering.cpp"
 
     @property
+    def test_integration_lifting_filename(self) -> str:
+        """Filename for the lifting integration test."""
+        if self.frontend.node_class:
+            base = (
+                self.frontend.node_class[:-4]
+                if self.frontend.node_class.endswith("Node")
+                else self.frontend.node_class
+            )
+            return f"Integration{base}DescriptorLifting.cpp"
+        return f"Integration{self.name}DescriptorLifting.cpp"
+
+    @property
     def required_tensor_fields(self) -> list[TensorField]:
         return [f for f in self.tensor_fields if f.required]
 

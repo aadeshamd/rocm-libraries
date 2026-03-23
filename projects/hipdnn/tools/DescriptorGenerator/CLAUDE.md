@@ -111,6 +111,7 @@ Copy the complete generated files to their target locations:
 | `backend/tests/descriptors/Test<Op>OperationDescriptor.cpp` | `projects/hipdnn/backend/tests/descriptors/` |
 | `backend/tests/descriptors/TestGraphDescriptor<Op>.cpp` | `projects/hipdnn/backend/tests/descriptors/` |
 | `tests/frontend/Integration<Op>DescriptorLowering.cpp` | `projects/hipdnn/tests/frontend/` |
+| `tests/frontend/Integration<Op>DescriptorLifting.cpp` | `projects/hipdnn/tests/frontend/` |
 
 ### 6a. Wire `create_operation` in the Frontend Node
 
@@ -145,12 +146,13 @@ For operations that need lifting (reconstructing frontend graph attributes from 
 .venv/bin/python generate.py --config configs/<op>.yaml --output-dir /tmp/lift-output --lift-only
 ```
 
-This generates only lifting-related files:
+This generates lifting-related files including the unpacker, fromNode tests, lifting integration tests, and fragment templates:
 
 | Generated File | Purpose |
 |----------------|---------|
 | `frontend/include/hipdnn_frontend/detail/<Op>Unpacker.hpp` | Frontend unpacker (inverse of packer) |
 | `backend/tests/descriptors/Test<Op>OperationFromNode.cpp` | fromNode() round-trip tests |
+| `tests/frontend/Integration<Op>DescriptorLifting.cpp` | Lifting round-trip integration tests |
 | `fragments/node_factory_case.txt` | NodeFactory switch case for this operation |
 | `fragments/operation_unpacker_case.txt` | OperationUnpacker switch case |
 | `fragments/operation_type_enum.txt` | hipdnnOperationType_t enum entry |
@@ -170,6 +172,7 @@ The `descriptor_lifting_additions.txt` file contains the exact changes to make t
 |----------------|-----------------|
 | `<Op>Unpacker.hpp` | `projects/hipdnn/frontend/include/hipdnn_frontend/detail/` |
 | `Test<Op>OperationFromNode.cpp` | `projects/hipdnn/backend/tests/descriptors/` |
+| `Integration<Op>DescriptorLifting.cpp` | `projects/hipdnn/tests/frontend/` |
 
 ### 7c. Wire Lifting Fragments
 

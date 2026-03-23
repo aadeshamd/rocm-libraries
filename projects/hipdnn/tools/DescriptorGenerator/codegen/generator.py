@@ -31,6 +31,8 @@ class DescriptorGenerator:
             / config.unpacker_filename,
             "test_from_node.cpp.j2": Path("backend/tests/descriptors")
             / config.test_from_node_filename,
+            "test_integration_lifting.cpp.j2": Path("tests/frontend")
+            / config.test_integration_lifting_filename,
         }
 
         for template_name, rel_path in lift_templates.items():
@@ -238,6 +240,8 @@ class DescriptorGenerator:
             / config.test_from_node_filename,
             "test_integration.cpp.j2": Path("tests/frontend")
             / config.test_integration_filename,
+            "test_integration_lifting.cpp.j2": Path("tests/frontend")
+            / config.test_integration_lifting_filename,
             "unpacker.hpp.j2": Path("frontend/include/hipdnn_frontend/detail")
             / config.unpacker_filename,
         }
