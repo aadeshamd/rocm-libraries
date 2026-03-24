@@ -3,6 +3,19 @@
 
 """Factory helpers for building minimal valid model instances in unit tests."""
 
+ALL_CONFIG_NAMES = [
+    "batchnorm.yaml",
+    "batchnorm_backward.yaml",
+    "batchnorm_inference.yaml",
+    "batchnorm_inference_variance_ext.yaml",
+    "convolution_bwd.yaml",
+    "convolution_fwd.yaml",
+    "convolution_wrw.yaml",
+    "matmul.yaml",
+    "pointwise.yaml",
+    "sdpa.yaml",
+]
+
 from codegen.models import (
     DataField,
     DescriptorTypeConfig,

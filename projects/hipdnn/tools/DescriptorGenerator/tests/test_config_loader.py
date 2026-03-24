@@ -41,18 +41,7 @@ from tests.helpers import (
 # Task 2B.1: Happy path -- load all 10 configs without error
 # ---------------------------------------------------------------------------
 
-ALL_CONFIG_NAMES = [
-    "batchnorm.yaml",
-    "batchnorm_backward.yaml",
-    "batchnorm_inference.yaml",
-    "batchnorm_inference_variance_ext.yaml",
-    "convolution_bwd.yaml",
-    "convolution_fwd.yaml",
-    "convolution_wrw.yaml",
-    "matmul.yaml",
-    "pointwise.yaml",
-    "sdpa.yaml",
-]
+from tests.helpers import ALL_CONFIG_NAMES
 
 
 @pytest.mark.parametrize("config_name", ALL_CONFIG_NAMES)

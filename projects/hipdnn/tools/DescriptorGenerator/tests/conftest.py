@@ -10,13 +10,13 @@ from codegen.config_loader import load_config
 from codegen.generator import DescriptorGenerator
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def configs_dir():
     """Path to the configs/ directory."""
     return Path(__file__).parent.parent / "configs"
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def config_path(configs_dir):
     """Factory fixture: returns path to a named config file."""
 
@@ -26,7 +26,7 @@ def config_path(configs_dir):
     return _config_path
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def load_test_config(config_path):
     """Factory fixture: loads a named YAML config into OperationConfig."""
 
@@ -66,7 +66,7 @@ def sdpa_config(load_test_config):
     return load_test_config("sdpa.yaml")
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def template_dir():
     """Path to the templates/ directory."""
     return Path(__file__).parent.parent / "templates"
@@ -81,15 +81,6 @@ def generator(template_dir):
 @pytest.fixture
 def all_config_names():
     """List of all YAML config filenames."""
-    return [
-        "batchnorm.yaml",
-        "batchnorm_backward.yaml",
-        "batchnorm_inference.yaml",
-        "batchnorm_inference_variance_ext.yaml",
-        "convolution_bwd.yaml",
-        "convolution_fwd.yaml",
-        "convolution_wrw.yaml",
-        "matmul.yaml",
-        "pointwise.yaml",
-        "sdpa.yaml",
-    ]
+    from tests.helpers import ALL_CONFIG_NAMES
+
+    return ALL_CONFIG_NAMES

@@ -19,18 +19,7 @@ from generate import _preview_files
 # Constants
 # ---------------------------------------------------------------------------
 
-ALL_CONFIG_NAMES = [
-    "batchnorm.yaml",
-    "batchnorm_backward.yaml",
-    "batchnorm_inference.yaml",
-    "batchnorm_inference_variance_ext.yaml",
-    "convolution_bwd.yaml",
-    "convolution_fwd.yaml",
-    "convolution_wrw.yaml",
-    "matmul.yaml",
-    "pointwise.yaml",
-    "sdpa.yaml",
-]
+from tests.helpers import ALL_CONFIG_NAMES
 
 # Configs with complete frontend fields (inputs, outputs, node_type_enum)
 FRONTEND_CAPABLE_CONFIGS = [
@@ -311,17 +300,13 @@ class TestDescriptorLiftingAdditions:
         assert "HIPDNN_ATTR_OPERATION_TYPE_EXT" in output
         assert convolution_fwd_config.operation_type_enum in output
 
-    def test_operation_type_enum_absent_when_unset(self, generator, load_test_config):
+    def test_operation_type_enum_absent_when_unset(self, generator):
         """When operation_type_enum is not set, HIPDNN_ATTR_OPERATION_TYPE_EXT is absent."""
-        config = load_test_config("matmul.yaml")
-        # Matmul may or may not have operation_type_enum; check dynamically
-        if not config.operation_type_enum:
-            output = generator._render_descriptor_lifting_additions(config)
-            assert "HIPDNN_ATTR_OPERATION_TYPE_EXT" not in output
-        else:
-            # If matmul has it, verify it IS present
-            output = generator._render_descriptor_lifting_additions(config)
-            assert "HIPDNN_ATTR_OPERATION_TYPE_EXT" in output
+        from tests.helpers import make_minimal_config
+
+        config = make_minimal_config(operation_type_enum="")
+        output = generator._render_descriptor_lifting_additions(config)
+        assert "HIPDNN_ATTR_OPERATION_TYPE_EXT" not in output
 
     def test_cpp_section_markers(self, convolution_fwd_config, generator):
         """Output contains CPP section markers."""

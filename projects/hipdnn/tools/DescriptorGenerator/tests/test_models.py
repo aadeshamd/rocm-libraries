@@ -1413,9 +1413,8 @@ class TestOperationConfigEdgeCases:
         for t in types:
             df = make_data_field(name=f"field_{t}", type=t)
             categories = sum([df.is_vector, df.is_enum, df.is_mode, df.is_scalar])
-            # Each field type should be classified into exactly one category
-            # except scalar types which aren't mode/enum/vector
-            assert categories >= 1, f"Type {t} not classified"
+            # Each field type is classified into exactly one primary category
+            assert categories == 1, f"Type {t} in {categories} categories (expected 1)"
 
     def test_packer_filename_empty_node_class_empty_packer_function(self):
         """When both packer_function and node_class are empty, fallback to name."""

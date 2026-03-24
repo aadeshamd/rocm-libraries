@@ -75,11 +75,10 @@ class TestPreviewFilesBackend:
 
     def test_backend_file_count(self, convolution_fwd_config):
         files = _preview_files(convolution_fwd_config, MODE_BACKEND)
-        # 9 files + 9 fragments + mode enum files (conv has generatable mode fields)
-        # ConvFwd has conv_mode with enum_def but it is NOT shared=False by default...
-        # Actually, checking: conv_mode has shared not set (defaults to False)
-        # and has enum_def with values, so it IS a generatable_mode_field
-        assert len(files) >= 18  # at least 9 + 9
+        # 9 file templates + 9 fragment templates + 4 per generatable mode field
+        n_mode_files = 4 * len(convolution_fwd_config.generatable_mode_fields)
+        expected = 9 + 9 + n_mode_files
+        assert len(files) == expected
 
     def test_backend_contains_descriptor_header(self, convolution_fwd_config):
         files = _preview_files(convolution_fwd_config, MODE_BACKEND)
@@ -350,7 +349,10 @@ class TestCLIBehavior:
     @pytest.fixture
     def python_exe(self):
         """Path to the .venv Python executable."""
-        return Path(__file__).parent.parent / ".venv" / "bin" / "python"
+        exe = Path(__file__).parent.parent / ".venv" / "bin" / "python"
+        if not exe.exists():
+            pytest.skip("No .venv/bin/python found; CLI tests require a local venv")
+        return exe
 
     def test_missing_config_file_exits(self, generate_script, python_exe, tmp_path):
         """--config pointing to a nonexistent file exits with code 1."""
@@ -484,10 +486,12 @@ class TestCLIBehavior:
             text=True,
         )
         assert result.returncode == 0
-        # Count lines with file paths (indented with two spaces)
+        # Count lines with file paths (indented with two spaces, contain / or .)
         file_lines = [
-            line for line in result.stdout.splitlines() if line.startswith("  ")
+            line
+            for line in result.stdout.splitlines()
+            if line.startswith("  ") and ("/" in line or "." in line)
         ]
         matmul_config = load_config(config_file)
         expected = _preview_files(matmul_config, MODE_BACKEND)
-        assert len(file_lines) >= len(expected)
+        assert len(file_lines) == len(expected)
