@@ -143,8 +143,8 @@ class TestPreviewFilesFrontend:
 
     def test_frontend_file_count(self, convolution_fwd_config):
         files = _preview_files(convolution_fwd_config, MODE_FRONTEND)
-        # 2 files + 3 tests + 4 fragments = 9
-        assert len(files) == 9
+        # 2 files + 3 tests + 5 fragments = 10
+        assert len(files) == 10
 
     def test_frontend_contains_attributes_header(self, convolution_fwd_config):
         files = _preview_files(convolution_fwd_config, MODE_FRONTEND)

@@ -181,6 +181,7 @@ def _preview_files(config, mode: str) -> list[str]:
         "fragments/deserialize_case.txt",
         "fragments/graph_includes.txt",
         "fragments/frontend_cmake_entries.txt",
+        "fragments/node_type_enum.txt",
     ]
 
     # Lift-only files
