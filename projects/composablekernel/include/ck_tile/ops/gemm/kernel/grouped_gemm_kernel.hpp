@@ -330,15 +330,18 @@ struct GroupedGemmKernel
             }
             else // Non-persistent kernel
             {
+                const index_t num_loop = amd_wave_read_first_lane(
+                    TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
                 Base::RunGemm({a_ptr},
                               {b_ptr},
                               kargs.ds_ptr,
                               c_ptr,
                               smem_ptr,
                               kargs,
-                              splitk_batch_offset,
+                              num_loop,
                               i_m,
-                              i_n);
+                              i_n,
+                              splitk_batch_offset.splitted_k);
             }
         }
     }

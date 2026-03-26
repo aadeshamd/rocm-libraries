@@ -212,7 +212,7 @@ struct StreamKKernel
         return StreamKKernelArgs{host_args, max_active_wgs};
     }
 
-    template <bool UseDefaultScheduler = true>
+    // template <bool UseDefaultScheduler = true>
     CK_TILE_DEVICE static void
     RunGemm(const std::array<const ADataType*, UniversalGemmKernel::NumATensor>& as_ptr,
             const std::array<const BDataType*, UniversalGemmKernel::NumBTensor>& bs_ptr,
@@ -233,30 +233,20 @@ struct StreamKKernel
         const auto& ds_block_window =
             UniversalGemmKernel::MakeDBlockWindows(ds_ptr, kargs, block_idx_m, block_idx_n);
 
-        // Since num_loop can vary per WG and per iteration of the Stream-K while loop, we compute
-        // has_hot_loop and tail_num here. This is a similar pattern used by grouped GEMM. In this
-        // case, we call the GemmPipeline's operator() function that takes both has_hot_loop and
-        // tail_num.
-        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
-        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
-
         // Run GEMM cooperatively by whole workgroup.
         const auto& c_block_tile = GemmPipeline{}(as_block_window[UniversalGemmKernel::I0],
                                                   bs_block_window[UniversalGemmKernel::I0],
                                                   num_loop,
-                                                  has_hot_loop,
-                                                  tail_num,
+                                                  /*has_hot_loop,*/
+                                                  /*tail_num,*/
                                                   smem_ptr_0);
 
-        if(UseDefaultScheduler || (get_warp_id() == 0))
-        {
-            // Run Epilogue Pipeline
-            auto c_block_window =
-                UniversalGemmKernel::template MakeCBlockWindows<TilePartitioner::MemoryOperation>(
-                    c_ptr, kargs, block_idx_m, block_idx_n);
+        // Run Epilogue Pipeline
+        auto c_block_window =
+            UniversalGemmKernel::template MakeCBlockWindows<TilePartitioner::MemoryOperation>(
+                c_ptr, kargs, block_idx_m, block_idx_n);
 
-            EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
-        }
+        EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
     }
 
     CK_TILE_HOST static bool IsSupportedArgument(const StreamKKernelArgs& kargs)
@@ -282,11 +272,12 @@ struct StreamKKernel
     }
 
     /**
-     * @brief Computes offsets into A, B, and C tensors then runs the GEMM pipeline and epilogue.
+     * @brief Computes offsets into A, B, and C tensors then runs the GEMM pipeline and
+     * epilogue.
      * @param kargs Stream-K kernel arguments.
      * @param tile_idx The 1D tile index in the C tensor for this workgroup.
-     * @param num_loop The number of iterations (at the macro tile level) in the K dimension this
-     * workgroup will perform in the C tile.
+     * @param num_loop The number of iterations (at the macro tile level) in the K dimension
+     * this workgroup will perform in the C tile.
      * @param i_k_a The K offset in the A tensor.
      * @param i_k_b The K offset in the B tensor.
      * @param k_size The portion of the K dimension this workgroup processes in the assigned
@@ -310,7 +301,7 @@ struct StreamKKernel
         CDataType* c_ptr       = static_cast<CDataType*>(kargs.e_ptr);
 
         // Run the GEMM pipeline and Epilogue.
-        RunGemm(
+        UniversalGemmKernel::RunGemm(
             {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr_0, kargs, num_loop, i_m, i_n, k_size);
     }
 
@@ -328,9 +319,9 @@ struct StreamKKernel
         index_t offset     = cta_idx * sizeof(index_t);
 
         asm volatile("s_mov_b32 m0, %2\n\t"
-                     // Depending on the architecture, the GLC flag will bypass the approproriate
-                     // cache level(s) to ensure the write is visible to other workgroups. See the
-                     // appropriate ISA for details about the GLC modifier.
+                     // Depending on the architecture, the GLC flag will bypass the
+                     // approproriate cache level(s) to ensure the write is visible to other
+                     // workgroups. See the appropriate ISA for details about the GLC modifier.
                      "s_store_dword %0, %1, %2 glc\n\t"
                      "s_waitcnt lgkmcnt(0)" // Wait for the store to complete
                      :
@@ -436,18 +427,18 @@ struct StreamKKernel
      */
     CK_TILE_DEVICE static constexpr index_t GetVectorSizePartials()
     {
-        // We use kCM1PerLane from the C register layout of the warp GEMM which corresponds to the
-        // maximum vector width
+        // We use kCM1PerLane from the C register layout of the warp GEMM which corresponds to
+        // the maximum vector width
         return WarpGemm::WarpGemmAttribute::Impl::kCM1PerLane;
     }
 
     /**
      * @brief Returns distribution used for reading from and writing to partials.
      * @return The distribution.
-     * @note This will result in optimized reads from and writes to partials when C is row major.
-     * Additional functionality should be added to ensure optimized accesses to partials when C is
-     * column major. Since the C-Shuffle epilogue only supports C as row major, this is not a
-     * current limitation.
+     * @note This will result in optimized reads from and writes to partials when C is row
+     * major. Additional functionality should be added to ensure optimized accesses to partials
+     * when C is column major. Since the C-Shuffle epilogue only supports C as row major, this
+     * is not a current limitation.
      */
     CK_TILE_DEVICE static constexpr auto MakePartialsDistribution()
     {
@@ -472,8 +463,8 @@ struct StreamKKernel
         constexpr index_t warp_tile_n_threads = WarpGemm::kN / vector_size;
         constexpr index_t warp_tile_m_threads = get_warp_size() / warp_tile_n_threads;
 
-        // This inner encoding ensures that contiguous threads perform vectorized writes along the
-        // same row in C.
+        // This inner encoding ensures that contiguous threads perform vectorized writes along
+        // the same row in C.
         constexpr auto partials_inner_dstr_encoding =
             tile_distribution_encoding<sequence<>,
                                        tuple<sequence<m_warp_repeat, warp_tile_m_threads>,
@@ -609,19 +600,12 @@ struct StreamKKernel
                 const auto& ds_block_window =
                     UniversalGemmKernel::MakeDBlockWindows({/*ds_ptr*/}, kargs, i_m, i_n);
 
-                // Since num_loop can vary per WG and per iteration of the Stream-K while loop,
-                // we compute has_hot_loop and tail_num here. This is a similar pattern used by
-                // grouped GEMM. In this case, we call the GemmPipeline's operator() function
-                // that takes both has_hot_loop and tail_num.
-                const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop_sk);
-                const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop_sk);
-
                 // Run GEMM cooperatively by whole workgroup.
                 const auto& c_block_tile = GemmPipeline{}(as_block_window[UniversalGemmKernel::I0],
                                                           bs_block_window[UniversalGemmKernel::I0],
                                                           num_loop_sk,
-                                                          has_hot_loop,
-                                                          tail_num,
+                                                          /*has_hot_loop,*/
+                                                          /*tail_num,*/
                                                           smem_ptr_0);
 
                 auto tile_started = iter_start == tile_iter_start;
@@ -684,9 +668,9 @@ struct StreamKKernel
                         bool partner_in_tile =
                             amd_wave_read_first_lane(partner_start_iter < tile_iter_end);
 
-                        // If the partner of the workgroup who started the tile is not in this tile,
-                        // then the work for this tile is done and results can be stored in the C
-                        // tensor.
+                        // If the partner of the workgroup who started the tile is not in this
+                        // tile, then the work for this tile is done and results can be stored
+                        // in the C tensor.
                         if(tile_started && !partner_in_tile)
                         {
                             auto c_block_window = UniversalGemmKernel::template MakeCBlockWindows<
@@ -719,8 +703,8 @@ struct StreamKKernel
                         {
                             StorePartial(kargs, cta_idx, accum_block_tile);
                             SignalStorePartialDone(kargs, cta_idx);
-                            // Once the workgroup writes to partials, it has no more work to do for
-                            // this tile.
+                            // Once the workgroup writes to partials, it has no more work to do
+                            // for this tile.
                             break;
                         }
                     }

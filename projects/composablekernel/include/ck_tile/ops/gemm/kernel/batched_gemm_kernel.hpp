@@ -229,8 +229,18 @@ struct BatchedGemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr[GetSmemSize()];
-        UniversalGemmKernel::RunGemm(
-            {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr, kargs, splitk_batch_offset, i_m, i_n);
+        const index_t num_loop =
+            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        UniversalGemmKernel::RunGemm({a_ptr},
+                                     {b_ptr},
+                                     {/*ds_ptr*/},
+                                     c_ptr,
+                                     smem_ptr,
+                                     kargs,
+                                     num_loop,
+                                     i_m,
+                                     i_n,
+                                     splitk_batch_offset.splitted_k);
     }
 };
 
