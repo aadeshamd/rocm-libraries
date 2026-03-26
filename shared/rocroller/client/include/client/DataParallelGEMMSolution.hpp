@@ -134,10 +134,7 @@ namespace rocRoller
                     if(solutionParams.types.scaleA == Operations::ScaleMode::Separate)
                     {
                         m_tagTensorScaleA = command->addOperation(rocRoller::Operations::Tensor(
-                            2,
-                            solutionParams.types.scaleTypeA,
-                            {},
-                            unitStrides));
+                            2, solutionParams.types.scaleTypeA, {}, unitStrides));
 
                         auto loadScaleInputA = m_tagTensorScaleA;
 
@@ -200,10 +197,7 @@ namespace rocRoller
                     if(solutionParams.types.scaleB == Operations::ScaleMode::Separate)
                     {
                         m_tagTensorScaleB = command->addOperation(rocRoller::Operations::Tensor(
-                            2,
-                            solutionParams.types.scaleTypeB,
-                            {},
-                            unitStrides));
+                            2, solutionParams.types.scaleTypeB, {}, unitStrides));
 
                         auto loadScaleInputB = m_tagTensorScaleB;
 

@@ -394,12 +394,12 @@ namespace rocRoller::Client::GEMMClient
 
         if(problemParams.types.scaleA == Operations::ScaleMode::Separate)
         {
-                std::vector<size_t> sizes{problemParams.m,
-                                          problemParams.k / problemParams.types.scaleBlockSize};
-                if(problemParams.types.transA == TransposeType::T)
-                    std::swap(sizes[0], sizes[1]);
+            std::vector<size_t> sizes{problemParams.m,
+                                      problemParams.k / problemParams.types.scaleBlockSize};
+            if(problemParams.types.transA == TransposeType::T)
+                std::swap(sizes[0], sizes[1]);
 
-                TensorDescriptor descAScale = TensorDescriptor(problemParams.types.scaleTypeA, sizes);
+            TensorDescriptor descAScale = TensorDescriptor(problemParams.types.scaleTypeA, sizes);
             auto [aScaleTag, bScaleTag] = gemm->getABScaleTags();
             setCommandTensorArg(commandArgs, aScaleTag.value(), descAScale, deviceScaleA.get());
         }
@@ -415,12 +415,12 @@ namespace rocRoller::Client::GEMMClient
 
         if(problemParams.types.scaleB == Operations::ScaleMode::Separate)
         {
-                std::vector<size_t> sizes{problemParams.k / problemParams.types.scaleBlockSize,
-                                          problemParams.n};
-                if(problemParams.types.transB == TransposeType::T)
-                    std::swap(sizes[0], sizes[1]);
+            std::vector<size_t> sizes{problemParams.k / problemParams.types.scaleBlockSize,
+                                      problemParams.n};
+            if(problemParams.types.transB == TransposeType::T)
+                std::swap(sizes[0], sizes[1]);
 
-                TensorDescriptor descBScale = TensorDescriptor(problemParams.types.scaleTypeB, sizes);
+            TensorDescriptor descBScale = TensorDescriptor(problemParams.types.scaleTypeB, sizes);
             auto [aScaleTag, bScaleTag] = gemm->getABScaleTags();
             setCommandTensorArg(commandArgs, bScaleTag.value(), descBScale, deviceScaleB.get());
         }

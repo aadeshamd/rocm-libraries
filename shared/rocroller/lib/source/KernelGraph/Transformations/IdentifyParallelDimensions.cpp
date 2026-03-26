@@ -158,11 +158,11 @@ namespace rocRoller
                 };
 
                 auto aDims = graph.coordinates.getInputNodeIndices(A, isConstructMacroTile)
-                                     .filter(notFixedSize)
-                                     .to<std::vector>();
+                                 .filter(notFixedSize)
+                                 .to<std::vector>();
                 auto bDims = graph.coordinates.getInputNodeIndices(B, isConstructMacroTile)
-                                     .filter(notFixedSize)
-                                     .to<std::vector>();
+                                 .filter(notFixedSize)
+                                 .to<std::vector>();
 
                 auto expectedASize = op.freeDimsA.size() + op.boundDims.size();
                 AssertFatal(aDims.size() == expectedASize,
@@ -205,9 +205,8 @@ namespace rocRoller
                     = CoordinateGraph::isEdge<CoordinateGraph::DestructMacroTile>;
                 for(int dTile : finalDMacroTiles)
                 {
-                    auto dDims
-                        = graph.coordinates.getOutputNodeIndices(dTile, isDestructMacroTile)
-                              .to<std::vector>();
+                    auto dDims = graph.coordinates.getOutputNodeIndices(dTile, isDestructMacroTile)
+                                     .to<std::vector>();
 
                     size_t expectedDSize = op.freeDimsA.size() + op.freeDimsB.size();
                     AssertFatal(dDims.size() == expectedDSize,
@@ -223,7 +222,7 @@ namespace rocRoller
                                nodeID);
 
                     // Match A's free dimensions to D's dimensions
-                    for (auto const& freeA : op.freeDimsA)
+                    for(auto const& freeA : op.freeDimsA)
                     {
                         auto aDim = aDims.at(freeA.ab);
                         auto dDim = dDims.at(freeA.d);
@@ -231,7 +230,7 @@ namespace rocRoller
                     }
 
                     // Match B's free dimensions to D's dimensions
-                    for (auto const& freeB : op.freeDimsB)
+                    for(auto const& freeB : op.freeDimsB)
                     {
                         auto bDim = bDims.at(freeB.ab);
                         auto dDim = dDims.at(freeB.d);
@@ -277,9 +276,9 @@ namespace rocRoller
                                        nodeID);
 
                             // Match ScaleA's free dimensions with A's free dimensions
-                            for (auto const& freeA : op.freeDimsA)
+                            for(auto const& freeA : op.freeDimsA)
                             {
-                                auto aDim = aDims.at(freeA.ab);
+                                auto aDim      = aDims.at(freeA.ab);
                                 auto scaleADim = scaleADims.at(freeA.ab);
                                 redundantArgs.push_back({aDim, scaleADim});
                             }
@@ -307,9 +306,9 @@ namespace rocRoller
                                        op.freeDimsB.size(),
                                        nodeID);
 
-                            for (auto const& freeB : op.freeDimsB)
+                            for(auto const& freeB : op.freeDimsB)
                             {
-                                auto bDim = bDims.at(freeB.ab);
+                                auto bDim      = bDims.at(freeB.ab);
                                 auto scaleBDim = scaleBDims.at(freeB.ab);
                                 redundantArgs.push_back({bDim, scaleBDim});
                             }
@@ -327,7 +326,7 @@ namespace rocRoller
                             op.boundDims.size(),
                             nodeID);
 
-                        for (auto const& bound : op.boundDims)
+                        for(auto const& bound : op.boundDims)
                         {
                             auto scaleADim = scaleADims.at(bound.a);
                             auto scaleBDim = scaleBDims.at(bound.b);
