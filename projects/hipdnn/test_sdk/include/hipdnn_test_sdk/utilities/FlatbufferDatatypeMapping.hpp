@@ -57,6 +57,7 @@ constexpr auto datatypeToNative()
     }
     else
     {
+        // NOLINTNEXTLINE(misc-redundant-expression) Intentional: DT != DT is a dependent false for constexpr-if
         static_assert(DT != DT, "Unsupported DataType");
     }
 }

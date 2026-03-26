@@ -19,6 +19,7 @@
 #include <hipdnn_test_sdk/utilities/cpu_graph_executor/detail/PlanBuilderRegistry.hpp>
 #include <hipdnn_test_sdk/utilities/cpu_graph_executor/detail/PointwisePlan.hpp>
 #include <hipdnn_test_sdk/utilities/cpu_graph_executor/detail/RMSNormFwdSignatureKey.hpp>
+#include <hipdnn_test_sdk/utilities/cpu_graph_executor/detail/SdpaFwdSignatureKey.hpp>
 
 namespace hipdnn_test_sdk::utilities
 {
@@ -45,7 +46,7 @@ public:
         }
 
         std::vector<std::unique_ptr<hipdnn_data_sdk::utilities::ITensor>> virtualTensors;
-        std::unordered_map<int64_t, void*> variantPackWithVirtualTensorsAdded
+        const std::unordered_map<int64_t, void*> variantPackWithVirtualTensorsAdded
             = populateVariantPackWithMissingVirtualTensors(
                 variantPack, graphWrap.getTensorMap(), virtualTensors);
 
@@ -85,7 +86,7 @@ private:
         const auto& planBuilder = _planRegistry.getPlanBuilder(key);
         if(!planBuilder.isApplicable(node, graph.getTensorMap()))
         {
-            std::string nodeName = node.name() == nullptr ? "" : " " + node.name()->str();
+            const std::string nodeName = node.name() == nullptr ? "" : " " + node.name()->str();
             throw std::runtime_error("Plan builder is not applicable for the given node: "
                                      + nodeName);
         }
@@ -125,6 +126,8 @@ private:
             return detail::RMSNormFwdSignatureKey(node, tensorMap);
         case hipdnn_data_sdk::data_objects::NodeAttributes::BlockScaleDequantizeAttributes:
             return detail::BlockScaleDequantizeSignatureKey(node, tensorMap);
+        case hipdnn_data_sdk::data_objects::NodeAttributes::SdpaAttributes:
+            return detail::SdpaFwdSignatureKey(node, tensorMap);
         default:
             throw std::runtime_error("Unsupported node type for signature key generation");
         }
