@@ -238,7 +238,7 @@ namespace rocRoller::Client::GEMMClient
             auto const packing = TypeInfo<PackedTypeA>::ElementBits / TypeInfo<A>::ElementBits;
 
             // descA.sizes() is in fastest-first order: {K, M} for transposed A.
-            std::vector<size_t> sizes       = descA.sizes();
+            std::vector<size_t> sizes = descA.sizes();
             // pretileA is in logical MxK order from the CLI.
             std::vector<size_t> preTileSize = problemParams.types.pretileA;
             if(packing > 1)

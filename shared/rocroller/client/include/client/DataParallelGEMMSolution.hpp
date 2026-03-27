@@ -745,8 +745,7 @@ namespace rocRoller
                     // K dimension index depends on transpose state:
                     // non-transposed A: dims {M, K}, K at index 1
                     // transposed A:     dims {K, M}, K at index 0
-                    auto kIdx
-                        = (solutionParams.types.transA == TransposeType::T) ? 0u : 1u;
+                    auto kIdx = (solutionParams.types.transA == TransposeType::T) ? 0u : 1u;
 
                     if(params->tailLoops and not params->streamK)
                     {
