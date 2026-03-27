@@ -267,131 +267,83 @@ using event_t                           = cudaEvent_t;
 constexpr unsigned host_register_mapped = cudaHostRegisterMapped;
 #endif
 
+#ifdef __HIP__
+    #define PRIMBENCH_PREFIX_BACKEND(fn) hip##fn
+#else
+    #define PRIMBENCH_PREFIX_BACKEND(fn) cuda##fn
+#endif
+
 inline error_t event_create(event_t* event)
 {
-#ifdef __HIP__
-    return hipEventCreate(event);
-#else
-    return cudaEventCreate(event);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(EventCreate)(event);
 }
 
 inline error_t event_destroy(event_t event)
 {
-#ifdef __HIP__
-    return hipEventDestroy(event);
-#else
-    return cudaEventDestroy(event);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(EventDestroy)(event);
 }
 
 inline error_t event_elapsed_time(float* ms, event_t start, event_t stop)
 {
-#ifdef __HIP__
-    return hipEventElapsedTime(ms, start, stop);
-#else
-    return cudaEventElapsedTime(ms, start, stop);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(EventElapsedTime)(ms, start, stop);
 }
 
 inline error_t event_record(event_t event, stream_t stream)
 {
-#ifdef __HIP__
-    return hipEventRecord(event, stream);
-#else
-    return cudaEventRecord(event, stream);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(EventRecord)(event, stream);
 }
 
 inline error_t get_last_error()
 {
-#ifdef __HIP__
-    return hipGetLastError();
-#else
-    return cudaGetLastError();
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(GetLastError)();
 }
 
 inline error_t gpu_free(void* device)
 {
-#ifdef __HIP__
-    return hipFree(device);
-#else
-    return cudaFree(device);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(Free)(device);
 }
 
 inline error_t gpu_malloc(void** device, size_t size)
 {
-#ifdef __HIP__
-    return hipMalloc(device, size);
-#else
-    return cudaMalloc(device, size);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(Malloc)(device, size);
 }
 
 inline error_t host_get_device_pointer(void** device, void* host, unsigned flags)
 {
-#ifdef __HIP__
-    return hipHostGetDevicePointer(device, host, flags);
-#else
-    return cudaHostGetDevicePointer(device, host, flags);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(HostGetDevicePointer)(device, host, flags);
 }
 
 inline error_t host_register(void* ptr, size_t size, unsigned flags)
 {
-#ifdef __HIP__
-    return hipHostRegister(ptr, size, flags);
-#else
-    return cudaHostRegister(ptr, size, flags);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(HostRegister)(ptr, size, flags);
 }
 
 inline error_t host_unregister(void* ptr)
 {
-#ifdef __HIP__
-    return hipHostUnregister(ptr);
-#else
-    return cudaHostUnregister(ptr);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(HostUnregister)(ptr);
 }
 
 inline error_t memset_async(void* device, int value, size_t count, stream_t stream)
 {
-#ifdef __HIP__
-    return hipMemsetAsync(device, value, count, stream);
-#else
-    return cudaMemsetAsync(device, value, count, stream);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(MemsetAsync)(device, value, count, stream);
 }
 
 inline error_t stream_create(stream_t* stream)
 {
-#ifdef __HIP__
-    return hipStreamCreate(stream);
-#else
-    return cudaStreamCreate(stream);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(StreamCreate)(stream);
 }
 
 inline error_t stream_destroy(stream_t stream)
 {
-#ifdef __HIP__
-    return hipStreamDestroy(stream);
-#else
-    return cudaStreamDestroy(stream);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(StreamDestroy)(stream);
 }
 
 inline error_t stream_synchronize(stream_t stream)
 {
-#ifdef __HIP__
-    return hipStreamSynchronize(stream);
-#else
-    return cudaStreamSynchronize(stream);
-#endif
+    return PRIMBENCH_PREFIX_BACKEND(StreamSynchronize)(stream);
 }
+
+#undef PRIMBENCH_PREFIX_BACKEND
 
 } // namespace gpu_backend
 
