@@ -237,13 +237,15 @@ namespace rocRoller::Client::GEMMClient
         {
             auto const packing = TypeInfo<PackedTypeA>::ElementBits / TypeInfo<A>::ElementBits;
 
+            // descA.sizes() is in fastest-first order: {K, M} for transposed A.
             std::vector<size_t> sizes       = descA.sizes();
+            // pretileA is in logical MxK order from the CLI.
             std::vector<size_t> preTileSize = problemParams.types.pretileA;
             if(packing > 1)
             {
                 // Tile sizes are in logical elements; convert sizes and preTileSize to packed
-                // element space. Packing is along the last (fast) dimension for A (K).
-                AssertFatal(sizes[1] % packing == 0,
+                // element space. Packing is along the first (fast) dimension for A (K).
+                AssertFatal(sizes[0] % packing == 0,
                             "pretileA: K dimension must be a multiple of packing factor (",
                             packing,
                             ") for packed type A.");
@@ -251,14 +253,14 @@ namespace rocRoller::Client::GEMMClient
                             "pretileA: tile K must be a multiple of packing factor (",
                             packing,
                             ") for packed type A.");
-                sizes[1] /= packing;
+                sizes[0] /= packing;
                 preTileSize[1] /= packing;
             }
 
-            // The preSwizzle helper assumes column-major; so we swap sizes here.
-            std::vector<size_t> swappedSizes       = {sizes[1], sizes[0]};
+            // sizes is already in column-major (fastest-first) order {K, M}.
+            // preTileSize is in logical MxK order; swap to column-major {K_tile, M_tile}.
             std::vector<size_t> swappedPreTileSize = {preTileSize[1], preTileSize[0]};
-            hostAForKernel = DGen::preSwizzle(hostA, swappedSizes, {}, swappedPreTileSize);
+            hostAForKernel = DGen::preSwizzle(hostA, sizes, {}, swappedPreTileSize);
         }
 
         size_t rotatingSize = benchmarkParams.rotatingBuffSize;

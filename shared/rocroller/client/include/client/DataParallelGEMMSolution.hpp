@@ -742,15 +742,22 @@ namespace rocRoller
                     // predicates
                     // unrollK size match predicates
 
+                    // K dimension index depends on transpose state:
+                    // non-transposed A: dims {M, K}, K at index 1
+                    // transposed A:     dims {K, M}, K at index 0
+                    auto kIdx
+                        = (solutionParams.types.transA == TransposeType::T) ? 0u : 1u;
+
                     if(params->tailLoops and not params->streamK)
                     {
-                        auto unrollKPredicate = (aSizeExps[1] % macKExp == zero);
+                        auto unrollKPredicate = (aSizeExps[kIdx] % macKExp == zero);
                         setComment(unrollKPredicate, "K must be a multiple of macK.");
                         commandKernel->addPredicate(unrollKPredicate);
                     }
                     else
                     {
-                        auto unrollKPredicate = (aSizeExps[1] % (macKExp * sanUnrollKExp) == zero);
+                        auto unrollKPredicate
+                            = (aSizeExps[kIdx] % (macKExp * sanUnrollKExp) == zero);
                         setComment(unrollKPredicate,
                                    "K must be a multiple of macK * unrollK (unrollK may be "
                                    "set by prefetchInFlight)");
