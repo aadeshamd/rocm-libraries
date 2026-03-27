@@ -462,14 +462,10 @@ namespace rocRoller
                         tag,
                         dynamicSubDims.size());
 
-                    // Determine which dimension has the largest stride based on memory layout
-                    // Column-major (rightmost fastest): leftmost dim has largest stride
-                    // Row-major (leftmost fastest): rightmost dim has largest stride
-                    bool rightmostFastest  = m_params->transposeMemoryAccess[dim.layoutType];
-                    int  maxStrideDimIndex = rightmostFastest ? 0 : 1;
-
-                    auto subDim
-                        = m_graph.coordinates.get<SubDimension>(dynamicSubDims[maxStrideDimIndex]);
+                    // Dimensions are ordered fastest-to-slowest stride.
+                    // The last dynamic SubDimension has the largest stride.
+                    auto subDim = m_graph.coordinates.get<SubDimension>(
+                        dynamicSubDims[dynamicSubDims.size() - 1]);
                     AssertFatal(
                         subDim && subDim->size && subDim->stride,
                         "SubDimension must have size and stride defined for User.size calculation");
@@ -484,7 +480,7 @@ namespace rocRoller
                         "for MacroTile {}",
                         userTag,
                         toString(user.size),
-                        dynamicSubDims[maxStrideDimIndex],
+                        dynamicSubDims[dynamicSubDims.size() - 1],
                         tag);
                 }
 
