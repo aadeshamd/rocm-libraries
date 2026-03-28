@@ -724,6 +724,12 @@ public:
         m_program_start_time = std::chrono::steady_clock::now();
     }
 
+    /// Returns the program start time.
+    std::chrono::time_point<std::chrono::steady_clock> get_program_start_time() const
+    {
+        return m_program_start_time;
+    }
+
     /// Initializes the logger, and opens the output JSON and CSV files.
     void init(std::string_view algorithm,
               size_t           specialization_count,
@@ -1466,6 +1472,35 @@ inline void print_dry_progress(std::string_view specialization,
     std::cout << line.str() << "\n" << std::flush;
 }
 
+/// Returns an estimated time in the format "9h 59m 59s".
+inline std::string format_eta(double remaining_secs)
+{
+    assert(remaining_secs > 0.0);
+
+    if(remaining_secs > 35999.0)
+        remaining_secs = 35999.0; // 9h 59m 59s
+
+    int h = static_cast<int>(remaining_secs) / 3600;
+    int m = (static_cast<int>(remaining_secs) % 3600) / 60;
+    int s = static_cast<int>(remaining_secs) % 60;
+
+    std::ostringstream oss;
+    if(h > 0)
+    {
+        oss << h << "h " << m << "m " << s << "s";
+    }
+    else if(m > 0)
+    {
+        oss << std::setw(3) << "" << m << "m " << s << "s";
+    }
+    else
+    {
+        oss << std::setw(7) << "" << s << "s";
+    }
+
+    return oss.str();
+}
+
 /// Prints real-time progress updates for algorithm execution.
 inline void print_progress(uint64_t         iteration,
                            double           noise_percent,
@@ -1480,7 +1515,8 @@ inline void print_progress(uint64_t         iteration,
                            double           elapsed_host_secs,
                            double           noise_timeout_secs,
                            double           noise_tolerance_percent,
-                           uint16_t         gpu_temp)
+                           uint16_t         gpu_temp,
+                           double           estimated_remaining_secs)
 {
     std::string status_header = "Status of " + std::string(algo_name);
 
@@ -1560,9 +1596,19 @@ inline void print_progress(uint64_t         iteration,
     line << "  " << std::setw(bytes_per_sec_column_width) << std::right << std::scientific
          << std::setprecision(2) << bytes_per_sec;
 
-    // Specialization and index.
+    // Specialization.
     line << "  " << std::setw(specialization_column_width) << std::left << specialization;
-    line << "  " << std::setw(index_column_width) << std::right << specialization_index;
+
+    // Index.
+    if(status_msg.empty() && estimated_remaining_secs > 0.0)
+    {
+        line << "  " << std::setw(index_column_width) << std::right
+             << format_eta(estimated_remaining_secs);
+    }
+    else
+    {
+        line << "  " << std::setw(index_column_width) << std::right << specialization_index;
+    }
 
     // Colorized status messages.
     if(status_msg.find("Success") != std::string::npos)
@@ -1572,6 +1618,7 @@ inline void print_progress(uint64_t         iteration,
 
     std::cout << line.str() << std::flush;
 }
+
 } // namespace progress
 
 #ifdef __HIP__
@@ -2047,6 +2094,7 @@ public:
     state(std::string_view algo,
           json             meta,
           size_t           specialization_index,
+          size_t           specialization_count,
           stream_t         stream,
           logger&          logger,
           monitor&         monitor,
@@ -2063,6 +2111,7 @@ public:
         , m_algo(algo)
         , m_meta(std::move(meta))
         , m_specialization_index(specialization_index)
+        , m_specialization_count(specialization_count)
         , m_logger(logger)
         , m_monitor(monitor)
         , m_stream_blocker(stream_blocker)
@@ -2182,6 +2231,8 @@ public:
 
         double elapsed_gpu_secs = 0.0;
 
+        double estimated_remaining_secs = get_estimated_remaining_secs();
+
         auto start = std::chrono::steady_clock::now();
 
         while(true)
@@ -2195,7 +2246,8 @@ public:
                              elapsed_gpu_secs,
                              name,
                              serialized_meta,
-                             bytes_per_item))
+                             bytes_per_item,
+                             estimated_remaining_secs))
             {
                 break;
             }
@@ -2223,7 +2275,8 @@ private:
                        double&                                      elapsed_gpu_secs,
                        const std::string&                           name,
                        const std::string&                           serialized_meta,
-                       size_t                                       bytes_per_item)
+                       size_t                                       bytes_per_item,
+                       double                                       estimated_remaining_secs)
     {
         const auto& s = m_settings;
 
@@ -2294,7 +2347,8 @@ private:
                                  elapsed_host_secs,
                                  s.noise_timeout_secs,
                                  s.noise_tolerance_percent,
-                                 gpu_temp);
+                                 gpu_temp,
+                                 estimated_remaining_secs);
 
         if(stop_early || noise_timeout)
         {
@@ -2488,6 +2542,29 @@ private:
         m_cache.clear_cache(stream);
     }
 
+    /// Returns the estimated time remaining for the entire program.
+    double get_estimated_remaining_secs() const
+    {
+        // We can only estimate once at least one specialization has finished.
+        if(m_specialization_index == 0)
+        {
+            return 0.0;
+        }
+
+        auto now   = std::chrono::steady_clock::now();
+        auto start = m_logger.get_program_start_time();
+
+        auto elapsed_total = std::chrono::duration<double>(now - start).count();
+
+        // Average time taken per completed specialization.
+        double avg_time_per_spec = elapsed_total / m_specialization_index;
+
+        // Number of specializations yet to be completed (including the current one).
+        size_t remaining_specs = m_specialization_count - m_specialization_index;
+
+        return avg_time_per_spec * remaining_specs;
+    }
+
     /// Computes mean of time samples.
     double get_mean(const std::vector<double>& times) const
     {
@@ -2517,7 +2594,9 @@ private:
 
     std::string m_algo;
     const json  m_meta;
-    size_t      m_specialization_index;
+
+    size_t m_specialization_index;
+    size_t m_specialization_count;
 
     logger&         m_logger;
     monitor&        m_monitor;
@@ -3124,8 +3203,11 @@ public:
 
         m_specialization_column_width = compute_max_specialization_width(algorithm);
 
-        m_index_column_width
-            = std::string("Index/").size() + std::to_string(specializations.size()).size();
+        constexpr size_t min_width = sizeof("9h 59m 59s") - 1;
+
+        m_index_column_width = std::max(min_width,
+                                        std::string("Index/").size()
+                                            + std::to_string(specializations.size()).size());
 
         print_header(algorithm);
 
@@ -3449,6 +3531,7 @@ private:
         return state(algo,
                      std::move(meta),
                      specialization_index,
+                     specializations.size(),
                      m_stream,
                      get_logger(),
                      get_monitor(),
