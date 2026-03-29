@@ -26,6 +26,12 @@
 #define CK_TILE_CONCEPTS 0
 #endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
+#if __cplusplus >= 202002L
+#define STATIC_EVAL consteval
+#else
+#define STATIC_EVAL constexpr
+#endif
+
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
     ([]() { static_assert(!((cnt) >> 6), "VMCNT only has 6 bits"); }(), \

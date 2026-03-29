@@ -5,6 +5,7 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/algorithm/coordinate_transform.hpp"
 #include "ck_tile/core/tensor/tensor_adaptor.hpp"

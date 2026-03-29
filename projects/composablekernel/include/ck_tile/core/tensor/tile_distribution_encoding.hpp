@@ -13,8 +13,447 @@
 #include "ck_tile/core/container/multi_index.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 
 namespace ck_tile {
+
+namespace tile_distribution_encoding_detail {
+
+// Helper to compute ys_lengths
+template <index_t NDimY,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor,
+          index_t NdimRhMajor,
+          index_t MaxNdimRhMinor>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto
+compute_ys_lengths(const array<array<index_t, MaxNdimRhMinor>, NdimRhMajor>& rhs_lengthss)
+{
+    array<index_t, NDimY> ys_lengths_tmp{-1};
+
+    for(index_t i = 0; i < NDimY; i++)
+    {
+        const index_t rh_major = Ys2RHsMajor{}[i];
+        const index_t rh_minor = Ys2RHsMinor{}[i];
+
+        ys_lengths_tmp(i) = rhs_lengthss[rh_major][rh_minor];
+    }
+
+    return ys_lengths_tmp;
+}
+
+// Helper to compute rhs_major_minor_to_ys
+template <index_t NDimY,
+          index_t NDimX,
+          index_t MaxNdimRhMinor,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto compute_rhs_major_minor_to_ys()
+{
+    array<array<index_t, MaxNdimRhMinor>, NDimX + 1> rhs_major_minor_to_ys_tmp{{-1}};
+
+    static_for<0, NDimY, 1>{}([&](auto i) {
+        constexpr index_t rh_major = Ys2RHsMajor{}[i];
+        constexpr index_t rh_minor = Ys2RHsMinor{}[i];
+
+        rhs_major_minor_to_ys_tmp(rh_major)(rh_minor) = i;
+    });
+
+    return rhs_major_minor_to_ys_tmp;
+}
+
+// Helper to compute ndims_span_minor
+template <index_t NDimY, index_t NDimX, typename Ys2RHsMajor>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto compute_ndims_span_minor()
+{
+    array<index_t, NDimX> ndims_span_minor{0};
+
+    for(index_t i = 0; i < NDimY; i++)
+    {
+        const index_t span_major = Ys2RHsMajor{}[i] - 1;
+
+        ndims_span_minor(span_major)++;
+    }
+
+    return ndims_span_minor;
+}
+
+// Helper to compute rhs_major_minor_to_span_minor
+template <index_t NdimRhMajor,
+          index_t MaxNdimRhMinor,
+          index_t NDimX,
+          typename NdimsRhsMinorArr,
+          typename RhsMajorMinorToYsArr>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto
+compute_rhs_major_minor_to_span_minor(const NdimsRhsMinorArr& ndims_rhs_minor,
+                                      const RhsMajorMinorToYsArr& rhs_major_minor_to_ys)
+{
+    array<array<index_t, MaxNdimRhMinor>, NdimRhMajor> rhs_major_minor_to_span_minor{{-1}};
+
+    static_for<0, NdimRhMajor, 1>{}([&](auto rh_major) {
+        const index_t ndim_rh_minor = ndims_rhs_minor[rh_major];
+
+        index_t cnt_ndim_span_minor = 0;
+
+        // Use runtime loop since ndim_rh_minor depends on computed value
+        for(index_t rh_minor = 0; rh_minor < ndim_rh_minor; rh_minor++)
+        {
+            const index_t idim_y = rhs_major_minor_to_ys[rh_major][rh_minor];
+
+            if(idim_y >= 0)
+            {
+                rhs_major_minor_to_span_minor(rh_major)(rh_minor) = cnt_ndim_span_minor;
+
+                cnt_ndim_span_minor++;
+            }
+        }
+    });
+
+    return rhs_major_minor_to_span_minor;
+}
+
+// Helper to compute distributed_spans_lengthss
+template <index_t NDimY,
+          index_t NdimSpanMajor,
+          index_t MaxNdimSpanMinor,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor,
+          typename HsLengthss,
+          typename RhsMajorMinorToSpanMinorArr>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto
+compute_distributed_spans_lengthss(const RhsMajorMinorToSpanMinorArr& rhs_major_minor_to_span_minor)
+{
+    array<array<index_t, MaxNdimSpanMinor>, NdimSpanMajor> distributed_spans_lengthss{{-1}};
+
+    static_for<0, NDimY, 1>{}([&](auto i) {
+        const index_t rh_major = Ys2RHsMajor{}[i];
+        const index_t rh_minor = Ys2RHsMinor{}[i];
+
+        const index_t h_length = HsLengthss{}[number<rh_major - 1>{}][rh_minor];
+
+        const index_t span_major = rh_major - 1;
+        const index_t span_minor = rhs_major_minor_to_span_minor[rh_major][rh_minor];
+
+        distributed_spans_lengthss(span_major)(span_minor) = h_length;
+    });
+
+    return distributed_spans_lengthss;
+}
+
+// Helper to compute ndims_distributed_spans_minor
+template <index_t NDimY, index_t NdimSpanMajor, typename Ys2RHsMajor>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto compute_ndims_distributed_spans_minor()
+{
+    array<index_t, NdimSpanMajor> ndims_distributed_spans_minor{0};
+
+    static_for<0, NDimY, 1>{}([&](auto i) {
+        const index_t span_major = Ys2RHsMajor{}[i] - 1;
+
+        ndims_distributed_spans_minor(span_major)++;
+    });
+
+    return ndims_distributed_spans_minor;
+}
+
+// Helper to compute does_p_own_r
+template <index_t NDimP, index_t NDimR, typename Ps2RHssMajor, typename Ps2RHssMinor>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto compute_does_p_own_r()
+{
+    if constexpr(NDimR > 0)
+    {
+        array<array<bool, NDimR>, NDimP> does_p_own_r{{false}};
+
+        static_for<0, NDimP, 1>{}([&](auto idim_p) {
+            constexpr index_t ndim_low = Ps2RHssMajor{}[idim_p].size();
+
+            static_for<0, ndim_low, 1>{}([&](auto idim_low) {
+                constexpr index_t rh_major = Ps2RHssMajor{}[idim_p][idim_low];
+                constexpr index_t rh_minor = Ps2RHssMinor{}[idim_p][idim_low];
+
+                if constexpr(rh_major == 0)
+                {
+                    does_p_own_r(idim_p)(rh_minor) = true;
+                }
+            });
+        });
+
+        return does_p_own_r;
+    }
+    else
+    {
+        return array<array<bool, NDimR>, NDimP>{};
+    }
+}
+
+// Helper to compute ps_over_rs_derivative
+template <index_t NDimP,
+          index_t NDimR,
+          index_t NdimRhMajor,
+          index_t MaxNdimRhMinor,
+          typename Ps2RHssMajor,
+          typename Ps2RHssMinor,
+          typename RhsLengthssArr>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto
+compute_ps_over_rs_derivative(const RhsLengthssArr& rhs_lengthss)
+{
+    if constexpr(NDimR > 0)
+    {
+        array<array<index_t, NDimR>, NDimP> ps_over_rs_derivative{{0}};
+
+        static_for<0, NDimP, 1>{}([&](auto idim_p) {
+            constexpr index_t ndim_low = Ps2RHssMajor{}[idim_p].size();
+
+            index_t p_over_rh_derivative = 1;
+
+            static_for<ndim_low - 1, -1, -1>{}([&](auto idim_low) {
+                constexpr index_t rh_major = Ps2RHssMajor{}[idim_p][idim_low];
+                constexpr index_t rh_minor = Ps2RHssMinor{}[idim_p][idim_low];
+
+                const index_t rh_length = rhs_lengthss[rh_major][rh_minor];
+
+                if constexpr(rh_major == 0)
+                {
+                    ps_over_rs_derivative(idim_p)(rh_minor) = p_over_rh_derivative;
+                }
+
+                p_over_rh_derivative *= rh_length;
+            });
+        });
+
+        return ps_over_rs_derivative;
+    }
+    else
+    {
+        return array<array<index_t, NDimR>, NDimP>{};
+    }
+}
+
+// Helper to compute ndims_rhs_minor
+template <index_t NdimRhMajor, typename RsLengths, typename HsLengthss>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto compute_ndims_rhs_minor()
+{
+    return generate_array(
+        [](auto i) {
+            if constexpr(i.value == 0)
+            {
+                return RsLengths::size();
+            }
+            else
+            {
+                return HsLengthss{}[i - number<1>{}].size();
+            }
+        },
+        number<NdimRhMajor>{});
+}
+
+// Helper to compute ys_to_span_major
+template <index_t NDimY, typename Ys2RHsMajor>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto compute_ys_to_span_major()
+{
+    return generate_array([](auto i) { return Ys2RHsMajor{}[i] - 1; }, number<NDimY>{});
+}
+
+// Helper to compute ys_to_span_minor
+template <index_t NDimY,
+          index_t NdimRhMajor,
+          index_t MaxNdimRhMinor,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor,
+          typename RhsMajorMinorToSpanMinorArr>
+CK_TILE_HOST_DEVICE STATIC_EVAL auto
+compute_ys_to_span_minor(const RhsMajorMinorToSpanMinorArr& rhs_major_minor_to_span_minor)
+{
+    return generate_array(
+        [&](auto i) { return rhs_major_minor_to_span_minor[Ys2RHsMajor{}[i]][Ys2RHsMinor{}[i]]; },
+        number<NDimY>{});
+}
+
+// Helper to get uniformed_h_dim_lengths
+template <index_t NDimX, typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_uniformed_h_dim_lengths_impl()
+{
+    // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5>
+    return generate_sequence_v2(
+        [](auto i) {
+            constexpr index_t size_ = HsLengthss{}[i].size();
+            return number<size_>{};
+        },
+        number<NDimX>{});
+}
+
+// Helper to get uniformed_rh_dim_lengths
+template <index_t NDimX, index_t NDimR, typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_uniformed_rh_dim_lengths_impl()
+{
+    constexpr auto uniformed_h_dim_lengths = get_uniformed_h_dim_lengths_impl<NDimX, HsLengthss>();
+    return merge_sequences(sequence<NDimR>{} /*for R dims*/, uniformed_h_dim_lengths);
+}
+
+// Helper to get rh_dim_lengths_prefix_sum
+template <index_t NDimX, index_t NDimR, typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_rh_dim_lengths_prefix_sum_impl()
+{
+    constexpr auto uniformed_rh_dim_lengths =
+        get_uniformed_rh_dim_lengths_impl<NDimX, NDimR, HsLengthss>();
+    return prefix_sum_sequence(uniformed_rh_dim_lengths);
+}
+
+// Helper to get h_dim_lengths_prefix_sum
+template <index_t NDimX, typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_h_dim_lengths_prefix_sum_impl()
+{
+    constexpr auto uniformed_h_dim_lengths = get_uniformed_h_dim_lengths_impl<NDimX, HsLengthss>();
+    return prefix_sum_sequence(uniformed_h_dim_lengths);
+}
+
+// Helper to compute uniformed p dim lengths over h
+template <index_t NDimX, typename Ps2RHssMajor, typename Ps2RHssMinor, typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_uniformed_p_dim_lengths_over_h_impl()
+{
+    constexpr auto uniformed_ps_to_rhss_major_ =
+        unpack([](auto... xs_) { return merge_sequences(xs_...); }, Ps2RHssMajor{});
+    constexpr auto uniformed_ps_to_rhss_minor_ =
+        unpack([](auto... xs_) { return merge_sequences(xs_...); }, Ps2RHssMinor{});
+
+    constexpr auto p_len_ = []() {
+        array<index_t, NDimX> len_{1};
+        static_for<0, NDimX, 1>{}([&](auto idim_x_) {
+            constexpr auto major_ = number<idim_x_ + 1>{}; // RDim
+            static_for<0, decltype(uniformed_ps_to_rhss_major_)::size(), 1>{}([&](auto idim_u_) {
+                if constexpr(major_.value == uniformed_ps_to_rhss_major_[idim_u_])
+                {
+                    constexpr auto minor_    = uniformed_ps_to_rhss_minor_[idim_u_];
+                    constexpr auto h_length_ = HsLengthss{}[idim_x_][minor_];
+                    len_[idim_x_] *= h_length_;
+                }
+            });
+        });
+        return len_;
+    }();
+    return TO_SEQUENCE(p_len_, NDimX);
+}
+
+// Helper to get uniformed idx p to h
+template <index_t NDimX,
+          index_t NDimR,
+          typename Ps2RHssMajor,
+          typename Ps2RHssMinor,
+          typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_uniformed_idx_p_to_h_impl()
+{
+    // tuple<seq<xx..>, seq<yy..>> -> seq<xx..yy..>
+    constexpr auto uniformed_ps_to_rhss_major_ =
+        unpack([](auto... xs_) { return merge_sequences(xs_...); }, Ps2RHssMajor{});
+    constexpr auto uniformed_ps_to_rhss_minor_ =
+        unpack([](auto... xs_) { return merge_sequences(xs_...); }, Ps2RHssMinor{});
+
+    constexpr auto rh_dim_prefix_sum =
+        get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
+
+    constexpr auto all_ps_2_rhss = transform_sequences(
+        [](auto major, auto minor) constexpr { return rh_dim_prefix_sum.at(major) + minor; },
+        uniformed_ps_to_rhss_major_,
+        uniformed_ps_to_rhss_minor_);
+
+    return all_ps_2_rhss;
+}
+
+// Helper to get uniformed idx y to rh
+template <index_t NDimX,
+          index_t NDimR,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor,
+          typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_uniformed_idx_y_to_rh_impl()
+{
+    constexpr auto rh_dim_prefix_sum =
+        get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
+
+    constexpr auto all_ys_2_rhss = transform_sequences(
+        [](auto major, auto minor) constexpr { return rh_dim_prefix_sum.at(major) + minor; },
+        Ys2RHsMajor{},
+        Ys2RHsMinor{});
+
+    return all_ys_2_rhss;
+}
+
+// Helper to get uniformed idx y to h
+template <index_t NDimX,
+          index_t NDimR,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor,
+          typename HsLengthss>
+CK_TILE_HOST_DEVICE constexpr auto get_uniformed_idx_y_to_h_impl()
+{
+    constexpr auto rh_dim_prefix_sum =
+        get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
+
+    constexpr auto all_ys_2_rhss = transform_sequences(
+        [](auto major, auto minor) constexpr {
+            return rh_dim_prefix_sum.at(major) + minor - NDimR;
+        },
+        Ys2RHsMajor{},
+        Ys2RHsMinor{});
+
+    return all_ys_2_rhss;
+}
+
+// Helper to compute y_to_h_mask for a single dimension
+template <index_t DimIdx,
+          index_t NDimY,
+          typename HsLengthss,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor>
+CK_TILE_HOST_DEVICE constexpr auto compute_y_to_h_mask_for_dim()
+{
+    constexpr auto size_ = HsLengthss{}[number<DimIdx>{}].size();
+    array<index_t, size_> m_{0};
+    // TODO: we loop over all y for each h dim
+    for(auto j = 0; j < NDimY; j++)
+    {
+        if(Ys2RHsMajor{}[j] == (DimIdx + 1) /*RDim need plus 1*/)
+        {
+            m_[Ys2RHsMinor{}[j]] = 1;
+        }
+    }
+    return TO_SEQUENCE(m_, size_);
+}
+
+// Helper to get y_to_h_masks
+template <index_t NDimX,
+          index_t NDimY,
+          typename HsLengthss,
+          typename Ys2RHsMajor,
+          typename Ys2RHsMinor>
+CK_TILE_HOST_DEVICE constexpr auto get_y_to_h_masks_impl()
+{
+    constexpr auto masks_ = generate_tuple(
+        [](auto i) {
+            return compute_y_to_h_mask_for_dim<i.value,
+                                               NDimY,
+                                               HsLengthss,
+                                               Ys2RHsMajor,
+                                               Ys2RHsMinor>();
+        },
+        number<NDimX>{});
+    return masks_;
+}
+
+// Helper to get sorted info
+template <typename IdxSeq, typename PrefixSumSeq>
+CK_TILE_HOST_DEVICE constexpr auto get_sorted_info_impl(IdxSeq, PrefixSumSeq)
+{
+    using sorted_idx = sequence_unique_sort<IdxSeq, less<index_t>, equal<index_t>>;
+
+    constexpr auto sorted_dims = typename sorted_idx::type{};
+    constexpr auto sorted_maps = typename sorted_idx::sorted2unsorted_map{};
+
+    constexpr auto sorted_histogram  = histogram_sorted_sequence(sorted_dims, PrefixSumSeq{});
+    constexpr auto sorted_prefix_sum = prefix_sum_sequence(sorted_histogram);
+
+    return make_tuple(sorted_dims, sorted_maps, sorted_prefix_sum);
+}
+
+} // namespace tile_distribution_encoding_detail
 
 template <typename RsLengths_,    // sequence<...>
           typename HsLengthss_,   // tuple<sequence<...>, ...>
@@ -61,18 +500,8 @@ struct tile_distribution_encoding
         static constexpr index_t ndim_span_major_ = NDimX;
 
         // ndims_rhs_minor_[ndim_rh_major_]
-        static constexpr auto ndims_rhs_minor_ = generate_array(
-            [](auto i) {
-                if constexpr(i.value == 0)
-                {
-                    return rs_lengths_.size();
-                }
-                else
-                {
-                    return hs_lengthss_[i - number<1>{}].size();
-                }
-            },
-            number<ndim_rh_major_>{});
+        static constexpr auto ndims_rhs_minor_ = tile_distribution_encoding_detail::
+            compute_ndims_rhs_minor<ndim_rh_major_, RsLengths, HsLengthss>();
 
         // max_ndim_rh_minor_
         static constexpr index_t max_ndim_rh_minor_ =
@@ -83,193 +512,77 @@ struct tile_distribution_encoding
             to_array_of_array(container_concat(make_tuple(rs_lengths_), hs_lengthss_));
 
         // ys_lengths_
-        static constexpr auto ys_lengths_ = [] {
-            array<index_t, NDimY> ys_lengths_tmp{-1};
-
-            for(index_t i = 0; i < NDimY; i++)
-            {
-                index_t rh_major = ys_to_rhs_major_[i];
-                index_t rh_minor = ys_to_rhs_minor_[i];
-
-                ys_lengths_tmp(i) = rhs_lengthss_[rh_major][rh_minor];
-            }
-
-            return ys_lengths_tmp;
-        }();
+        static constexpr auto ys_lengths_ = tile_distribution_encoding_detail::
+            compute_ys_lengths<NDimY, Ys2RHsMajor, Ys2RHsMinor, ndim_rh_major_, max_ndim_rh_minor_>(
+                rhs_lengthss_);
 
         // rhs_major_minor_to_ys_[ndim_rh_majpr_][max_ndim_rh_minor_]
-        static constexpr auto rhs_major_minor_to_ys_ = [] {
-            array<array<index_t, max_ndim_rh_minor_>, NDimX + 1> rhs_major_minor_to_ys_tmp{{-1}};
-
-            static_for<0, NDimY, 1>{}([&](auto i) {
-                constexpr index_t rh_major = ys_to_rhs_major_[i];
-                constexpr index_t rh_minor = ys_to_rhs_minor_[i];
-
-                rhs_major_minor_to_ys_tmp(rh_major)(rh_minor) = i;
-            });
-
-            return rhs_major_minor_to_ys_tmp;
-        }();
+        static constexpr auto rhs_major_minor_to_ys_ =
+            tile_distribution_encoding_detail::compute_rhs_major_minor_to_ys<NDimY,
+                                                                             NDimX,
+                                                                             max_ndim_rh_minor_,
+                                                                             Ys2RHsMajor,
+                                                                             Ys2RHsMinor>();
 
         // ndims_span_minor_[NDimY]
-        static constexpr auto ndims_span_minor_ = [] {
-            array<index_t, NDimX> ndims_span_minor{0};
-
-            for(index_t i = 0; i < NDimY; i++)
-            {
-                const index_t span_major = ys_to_rhs_major_[i] - 1;
-
-                ndims_span_minor(span_major)++;
-            }
-
-            return ndims_span_minor;
-        }();
+        static constexpr auto ndims_span_minor_ = tile_distribution_encoding_detail::
+            compute_ndims_span_minor<NDimY, NDimX, Ys2RHsMajor>();
 
         // max_ndim_span_minor_
         static constexpr index_t max_ndim_span_minor_ =
             container_reduce(ndims_span_minor_, maximize<index_t>{}, 0);
 
         // rhs_major_minor_to_span_minor_ [ndim_rh_major_][max_ndim_rh_minor_]
-        static constexpr auto rhs_major_minor_to_span_minor_ = [] {
-            array<array<index_t, max_ndim_rh_minor_>, ndim_rh_major_> rhs_major_minor_to_span_minor{
-                {-1}};
-
-            static_for<0, ndim_rh_major_, 1>{}([&](auto rh_major) {
-                constexpr index_t ndim_rh_minor = ndims_rhs_minor_[rh_major];
-
-                index_t cnt_ndim_span_minor = 0;
-
-                static_for<0, ndim_rh_minor, 1>{}([&](auto rh_minor) {
-                    constexpr index_t idim_y = rhs_major_minor_to_ys_[rh_major][rh_minor];
-
-                    if(idim_y >= 0)
-                    {
-                        rhs_major_minor_to_span_minor(rh_major)(rh_minor) = cnt_ndim_span_minor;
-
-                        cnt_ndim_span_minor++;
-                    }
-                });
-            });
-
-            return rhs_major_minor_to_span_minor;
-        }();
+        static constexpr auto rhs_major_minor_to_span_minor_ = tile_distribution_encoding_detail::
+            compute_rhs_major_minor_to_span_minor<ndim_rh_major_, max_ndim_rh_minor_, NDimX>(
+                ndims_rhs_minor_, rhs_major_minor_to_ys_);
 
         // ys_to_span_major_[NDimY]
         static constexpr auto ys_to_span_major_ =
-            generate_array([](auto i) { return ys_to_rhs_major_[i] - 1; }, number<NDimY>{});
+            tile_distribution_encoding_detail::compute_ys_to_span_major<NDimY, Ys2RHsMajor>();
 
         // ys_to_span_minor_[NDimY]
-        static constexpr auto ys_to_span_minor_ = generate_array(
-            [](auto i) {
-                return rhs_major_minor_to_span_minor_[ys_to_rhs_major_[i]][ys_to_rhs_minor_[i]];
-            },
-            number<NDimY>{});
+        static constexpr auto ys_to_span_minor_ =
+            tile_distribution_encoding_detail::compute_ys_to_span_minor<NDimY,
+                                                                        ndim_rh_major_,
+                                                                        max_ndim_rh_minor_,
+                                                                        Ys2RHsMajor,
+                                                                        Ys2RHsMinor>(
+                rhs_major_minor_to_span_minor_);
 
         // distributed_spans_lengthss_[ndim_span_major_][max_ndim_span_minor_]
-        static constexpr auto distributed_spans_lengthss_ = [] {
-            array<array<index_t, max_ndim_span_minor_>, ndim_span_major_>
-                distributed_spans_lengthss{{-1}};
-
-            static_for<0, NDimY, 1>{}([&](auto i) {
-                const index_t rh_major = ys_to_rhs_major_[i];
-                const index_t rh_minor = ys_to_rhs_minor_[i];
-
-                const index_t h_length = hs_lengthss_[number<rh_major - 1>{}][rh_minor];
-
-                const index_t span_major = rh_major - 1;
-                const index_t span_minor = rhs_major_minor_to_span_minor_[rh_major][rh_minor];
-
-                distributed_spans_lengthss(span_major)(span_minor) = h_length;
-            });
-
-            return distributed_spans_lengthss;
-        }();
+        static constexpr auto distributed_spans_lengthss_ =
+            tile_distribution_encoding_detail::compute_distributed_spans_lengthss<
+                NDimY,
+                ndim_span_major_,
+                max_ndim_span_minor_,
+                Ys2RHsMajor,
+                Ys2RHsMinor,
+                HsLengthss>(rhs_major_minor_to_span_minor_);
 
         // ndims_distributed_spans_minor_[ndim_span_major_]
-        static constexpr auto ndims_distributed_spans_minor_ = [] {
-            array<index_t, ndim_span_major_> ndims_distributed_spans_minor{0};
-
-            static_for<0, NDimY, 1>{}([&](auto i) {
-                const index_t span_major = ys_to_rhs_major_[i] - 1;
-
-                ndims_distributed_spans_minor(span_major)++;
-            });
-
-            return ndims_distributed_spans_minor;
-        }();
+        static constexpr auto ndims_distributed_spans_minor_ = tile_distribution_encoding_detail::
+            compute_ndims_distributed_spans_minor<NDimY, ndim_span_major_, Ys2RHsMajor>();
 
         // does_p_own_r_[NDimP][NDimR]
-        static constexpr auto does_p_own_r_ = [] {
-            if constexpr(NDimR > 0)
-            {
-                array<array<bool, NDimR>, NDimP> does_p_own_r{{false}};
-
-                static_for<0, NDimP, 1>{}([&](auto idim_p) {
-                    constexpr index_t ndim_low = ps_to_rhss_major_[idim_p].size();
-
-                    static_for<0, ndim_low, 1>{}([&](auto idim_low) {
-                        constexpr index_t rh_major = ps_to_rhss_major_[idim_p][idim_low];
-                        constexpr index_t rh_minor = ps_to_rhss_minor_[idim_p][idim_low];
-
-                        if constexpr(rh_major == 0)
-                        {
-                            does_p_own_r(idim_p)(rh_minor) = true;
-                        }
-                    });
-                });
-
-                return does_p_own_r;
-            }
-            else
-            {
-                return array<array<bool, NDimR>, NDimP>{};
-            }
-        }();
+        static constexpr auto does_p_own_r_ = tile_distribution_encoding_detail::
+            compute_does_p_own_r<NDimP, NDimR, Ps2RHssMajor, Ps2RHssMinor>();
 
         // ps_over_rs_derivative_[NDimP][NDimR]
-        static constexpr auto ps_over_rs_derivative_ = [] {
-            if constexpr(NDimR > 0)
-            {
-                array<array<index_t, NDimR>, NDimP> ps_over_rs_derivative{{0}};
-
-                static_for<0, NDimP, 1>{}([&](auto idim_p) {
-                    constexpr index_t ndim_low = ps_to_rhss_major_[idim_p].size();
-
-                    index_t p_over_rh_derivative = 1;
-
-                    static_for<ndim_low - 1, -1, -1>{}([&](auto idim_low) {
-                        constexpr index_t rh_major = ps_to_rhss_major_[idim_p][idim_low];
-                        constexpr index_t rh_minor = ps_to_rhss_minor_[idim_p][idim_low];
-
-                        constexpr index_t rh_length = rhs_lengthss_[rh_major][rh_minor];
-
-                        if constexpr(rh_major == 0)
-                        {
-                            ps_over_rs_derivative(idim_p)(rh_minor) = p_over_rh_derivative;
-                        }
-
-                        p_over_rh_derivative *= rh_length;
-                    });
-                });
-
-                return ps_over_rs_derivative;
-            }
-            else
-            {
-                return array<array<index_t, NDimR>, NDimP>{};
-            }
-        }();
+        static constexpr auto ps_over_rs_derivative_ =
+            tile_distribution_encoding_detail::compute_ps_over_rs_derivative<NDimP,
+                                                                             NDimR,
+                                                                             ndim_rh_major_,
+                                                                             max_ndim_rh_minor_,
+                                                                             Ps2RHssMajor,
+                                                                             Ps2RHssMinor>(
+                rhs_lengthss_);
 
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_h_dim_lengths()
         {
             // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5>
-            constexpr auto uniformed_h_dim_lengths = generate_sequence_v2(
-                [&](auto i) {
-                    constexpr index_t size_ = HsLengthss{}[i].size();
-                    return number<size_>{};
-                },
-                number<NDimX>{});
-            return uniformed_h_dim_lengths;
+            return tile_distribution_encoding_detail::
+                get_uniformed_h_dim_lengths_impl<NDimX, HsLengthss>();
         }
 
         // note: this function only count the p dim length along h, not r
@@ -280,28 +593,11 @@ struct tile_distribution_encoding
             //                   |              |     |
             //                   v              v     v
             // return :      seq<4,             2  *  4> => seq<4, 8>
-            constexpr auto uniformed_ps_to_rhss_major_ =
-                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_major_);
-            constexpr auto uniformed_ps_to_rhss_minor_ =
-                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_minor_);
-
-            constexpr auto p_len_ = [&]() {
-                array<index_t, NDimX> len_{1};
-                static_for<0, NDimX, 1>{}([&](auto idim_x_) {
-                    constexpr auto major_ = number<idim_x_ + 1>{}; // RDim
-                    static_for<0, uniformed_ps_to_rhss_major_.size(), 1>{}([&](auto idim_u_) {
-                        if constexpr(major_.value == uniformed_ps_to_rhss_major_[idim_u_])
-                        {
-                            constexpr auto minor_    = uniformed_ps_to_rhss_minor_[idim_u_];
-                            constexpr auto h_length_ = hs_lengthss_[idim_x_][minor_];
-                            len_[idim_x_] *= h_length_;
-                        }
-                    });
-                });
-                return len_;
-            }();
-            constexpr auto p_len_over_h_seq_ = TO_SEQUENCE(p_len_, NDimX);
-            return p_len_over_h_seq_;
+            return tile_distribution_encoding_detail::get_uniformed_p_dim_lengths_over_h_impl<
+                NDimX,
+                Ps2RHssMajor,
+                Ps2RHssMinor,
+                HsLengthss>();
         }
 
         //
@@ -311,10 +607,8 @@ struct tile_distribution_encoding
         //  => return seq<0, 2, 3>
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_rh_dim_lengths()
         {
-            constexpr auto uniformed_rh_dim_lengths =
-                merge_sequences(sequence<NDimR>{} /*for R dims*/, get_uniformed_h_dim_lengths());
-
-            return uniformed_rh_dim_lengths;
+            return tile_distribution_encoding_detail::
+                get_uniformed_rh_dim_lengths_impl<NDimX, NDimR, HsLengthss>();
         }
 
         // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5> --> seq<0, 3, 8>
@@ -322,105 +616,56 @@ struct tile_distribution_encoding
         {
             // <0, len_d0, len_d0+len_d1, ...>
             // e.g. seq<3, 5> --> seq<0, 3, 8>
-            constexpr auto h_dim_prefix_sum = prefix_sum_sequence(get_uniformed_h_dim_lengths());
-
-            return h_dim_prefix_sum;
+            return tile_distribution_encoding_detail::
+                get_h_dim_lengths_prefix_sum_impl<NDimX, HsLengthss>();
         }
 
         CK_TILE_HOST_DEVICE static constexpr auto get_rh_dim_lengths_prefix_sum()
         {
             // <0, len_d0, len_d0+len_d1, ...>
             // e.g. seq<3, 5> --> seq<0, 3, 8>
-            constexpr auto rh_dim_prefix_sum = prefix_sum_sequence(get_uniformed_rh_dim_lengths());
-
-            return rh_dim_prefix_sum;
+            return tile_distribution_encoding_detail::
+                get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
         }
 
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_p_to_h()
         {
-            // tuple<seq<xx..>, seq<yy..>> -> seq<xx..yy..>
-            constexpr auto uniformed_ps_to_rhss_major_ =
-                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_major_);
-            constexpr auto uniformed_ps_to_rhss_minor_ =
-                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_minor_);
-
-            constexpr auto all_ps_2_rhss = transform_sequences(
-                [](auto major, auto minor) constexpr {
-                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
-                    return rh_dim_prefix_sum.at(major) + minor;
-                },
-                uniformed_ps_to_rhss_major_,
-                uniformed_ps_to_rhss_minor_);
-
-            return all_ps_2_rhss;
+            return tile_distribution_encoding_detail::get_uniformed_idx_p_to_h_impl<NDimX,
+                                                                                    NDimR,
+                                                                                    Ps2RHssMajor,
+                                                                                    Ps2RHssMinor,
+                                                                                    HsLengthss>();
         }
 
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_rh()
         {
-            constexpr auto all_ys_2_rhss = transform_sequences(
-                [](auto major, auto minor) constexpr {
-                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
-                    return rh_dim_prefix_sum.at(major) + minor;
-                },
-                Ys2RHsMajor{},
-                Ys2RHsMinor{});
-
-            return all_ys_2_rhss;
+            return tile_distribution_encoding_detail::get_uniformed_idx_y_to_rh_impl<NDimX,
+                                                                                     NDimR,
+                                                                                     Ys2RHsMajor,
+                                                                                     Ys2RHsMinor,
+                                                                                     HsLengthss>();
         }
 
         CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_h()
         {
             // TODO: Y can't point to R
-            constexpr auto all_ys_2_rhss = transform_sequences(
-                [](auto major, auto minor) constexpr {
-                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
-                    return rh_dim_prefix_sum.at(major) + minor - NDimR;
-                },
-                Ys2RHsMajor{},
-                Ys2RHsMinor{});
-
-            return all_ys_2_rhss;
+            return tile_distribution_encoding_detail::
+                get_uniformed_idx_y_to_h_impl<NDimX, NDimR, Ys2RHsMajor, Ys2RHsMinor, HsLengthss>();
         }
 
         // return tuple of seq
         CK_TILE_HOST_DEVICE static constexpr auto get_y_to_h_masks()
         {
-            constexpr auto masks_ = generate_tuple(
-                [&](auto i) {
-                    constexpr auto size_                = HsLengthss{}[i].size();
-                    constexpr auto current_y_to_h_mask_ = [&]() {
-                        array<index_t, size_> m_{0};
-                        // TODO: we loop over all y for each h dim
-                        for(auto j = 0; j < NDimY; j++)
-                        {
-                            if(Ys2RHsMajor{}[j] == (i + 1) /*RDim need plus 1*/)
-                            {
-                                m_[Ys2RHsMinor{}[j]] = 1;
-                            }
-                        }
-                        return m_;
-                    }();
-
-                    return TO_SEQUENCE(current_y_to_h_mask_, size_);
-                },
-                number<NDimX>{});
-            return masks_;
+            return tile_distribution_encoding_detail::
+                get_y_to_h_masks_impl<NDimX, NDimY, HsLengthss, Ys2RHsMajor, Ys2RHsMinor>();
         }
 
         // return tuple<sorted_dims, sorted_maps, sorted_prefix_sum>
         template <typename IdxSeq, typename PrefixSumSeq>
-        CK_TILE_HOST_DEVICE static constexpr auto get_sorted_info(IdxSeq, PrefixSumSeq)
+        CK_TILE_HOST_DEVICE static constexpr auto get_sorted_info(IdxSeq idx_seq,
+                                                                  PrefixSumSeq prefix_sum_seq)
         {
-            using sorted_idx = sequence_unique_sort<IdxSeq, less<index_t>, equal<index_t>>;
-
-            constexpr auto sorted_dims = typename sorted_idx::type{};
-            constexpr auto sorted_maps = typename sorted_idx::sorted2unsorted_map{};
-
-            constexpr auto sorted_histogram =
-                histogram_sorted_sequence(sorted_dims, PrefixSumSeq{});
-            constexpr auto sorted_prefix_sum = prefix_sum_sequence(sorted_histogram);
-
-            return make_tuple(sorted_dims, sorted_maps, sorted_prefix_sum);
+            return tile_distribution_encoding_detail::get_sorted_info_impl(idx_seq, prefix_sum_seq);
         }
 
         // Note here y_to_h does not count R dim!
