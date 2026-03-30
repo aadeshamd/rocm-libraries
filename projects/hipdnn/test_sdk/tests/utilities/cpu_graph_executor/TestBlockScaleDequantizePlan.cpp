@@ -9,6 +9,7 @@
 #include <hipdnn_data_sdk/utilities/ShapeUtilities.hpp>
 #include <hipdnn_test_sdk/utilities/CpuFpReferenceBlockScaleDequantize.hpp>
 #include <hipdnn_test_sdk/utilities/CpuFpReferenceValidation.hpp>
+#include <hipdnn_test_sdk/utilities/FlatbufferDatatypeMapping.hpp>
 #include <hipdnn_test_sdk/utilities/FlatbufferGraphTestUtils.hpp>
 #include <hipdnn_test_sdk/utilities/Seeds.hpp>
 #include <hipdnn_test_sdk/utilities/cpu_graph_executor/GraphTensorBundle.hpp>
@@ -141,13 +142,47 @@ TEST(TestBlockScaleDequantizePlanBuilder, IsApplicable)
         e5m2FloatBuilder.isApplicable(mxGraphWrapper.getNode(0), mxGraphWrapper.getTensorMap()));
 }
 
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_E4M3_E8M0_FloatOutput)
+// ============================================================================
+// MX plan typed tests: all narrow types with fp8_e8m0 scale
+// ============================================================================
+
+template <DataType XDT, DataType ScaleDT, DataType OutputDT>
+struct MxPlanConfig
+{
+    static constexpr auto X_DATA_TYPE = XDT;
+    static constexpr auto SCALE_DATA_TYPE = ScaleDT;
+    static constexpr auto OUTPUT_DATA_TYPE = OutputDT;
+    using XType = DataTypeToNative<XDT>;
+    using ScaleType = DataTypeToNative<ScaleDT>;
+    using OutputType = DataTypeToNative<OutputDT>;
+};
+
+using MxPlanTypes
+    = ::testing::Types<MxPlanConfig<DataType::FP8_E4M3, DataType::FP8_E8M0, DataType::FLOAT>,
+                       MxPlanConfig<DataType::FP8_E4M3, DataType::FP8_E8M0, DataType::HALF>,
+                       MxPlanConfig<DataType::FP8_E5M2, DataType::FP8_E8M0, DataType::FLOAT>,
+                       MxPlanConfig<DataType::FP8_E5M2, DataType::FP8_E8M0, DataType::HALF>,
+                       MxPlanConfig<DataType::FP4_E2M1, DataType::FP8_E8M0, DataType::FLOAT>,
+                       MxPlanConfig<DataType::FP6_E2M3, DataType::FP8_E8M0, DataType::FLOAT>,
+                       MxPlanConfig<DataType::FP6_E3M2, DataType::FP8_E8M0, DataType::FLOAT>>;
+
+template <class T>
+class BlockScaleDequantizeMxPlan : public ::testing::Test
+{
+};
+
+TYPED_TEST_SUITE(BlockScaleDequantizeMxPlan, MxPlanTypes, );
+
+TYPED_TEST(BlockScaleDequantizeMxPlan, ExecutePlan)
 {
     using namespace hipdnn_data_sdk::types;
+    using Config = TypeParam;
+    using XType = typename Config::XType;
+    using ScaleType = typename Config::ScaleType;
+    using OutputType = typename Config::OutputType;
 
-    // Build a 1x4 fp8_e4m3 X, 1x2 fp8_e8m0 scale, 1x4 float Y graph (blockSize=2)
     auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP8_E4M3, DataType::FP8_E8M0, DataType::FLOAT);
+        Config::X_DATA_TYPE, Config::SCALE_DATA_TYPE, Config::OUTPUT_DATA_TYPE);
     const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
 
     const auto& node = graphWrapper.getNode(0);
@@ -165,25 +200,25 @@ TEST(TestBlockScaleDequantizePlan, ExecutePlan_E4M3_E8M0_FloatOutput)
     GraphTensorBundle planBundle(tensorMap);
     GraphTensorBundle directBundle(tensorMap);
 
-    // Set x values (fp8_e4m3) via raw host data
-    auto* planXData = static_cast<fp8_e4m3*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp8_e4m3(1.0f);
-    planXData[1] = fp8_e4m3(1.0f);
-    planXData[2] = fp8_e4m3(2.0f);
-    planXData[3] = fp8_e4m3(2.0f);
+    // Set x values via raw host data
+    auto* planXData = static_cast<XType*>(planBundle.getTensor(1).rawHostData());
+    planXData[0] = XType(1.0f);
+    planXData[1] = XType(1.0f);
+    planXData[2] = XType(2.0f);
+    planXData[3] = XType(2.0f);
 
-    auto* directXData = static_cast<fp8_e4m3*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp8_e4m3(1.0f);
-    directXData[1] = fp8_e4m3(1.0f);
-    directXData[2] = fp8_e4m3(2.0f);
-    directXData[3] = fp8_e4m3(2.0f);
+    auto* directXData = static_cast<XType*>(directBundle.getTensor(1).rawHostData());
+    directXData[0] = XType(1.0f);
+    directXData[1] = XType(1.0f);
+    directXData[2] = XType(2.0f);
+    directXData[3] = XType(2.0f);
 
     // Set scale values (fp8_e8m0): bits=127 => 1.0, bits=128 => 2.0
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
+    auto* planScaleData = static_cast<ScaleType*>(planBundle.getTensor(2).rawHostData());
     planScaleData[0] = fp8_e8m0::from_bits(127);
     planScaleData[1] = fp8_e8m0::from_bits(128);
 
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
+    auto* directScaleData = static_cast<ScaleType*>(directBundle.getTensor(2).rawHostData());
     directScaleData[0] = fp8_e8m0::from_bits(127);
     directScaleData[1] = fp8_e8m0::from_bits(128);
 
@@ -195,307 +230,31 @@ TEST(TestBlockScaleDequantizePlan, ExecutePlan_E4M3_E8M0_FloatOutput)
 
     // Direct reference execution
     auto directXTensor
-        = createShallowTensor<fp8_e4m3>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
+        = createShallowTensor<XType>(params.xTensor, directBundle.getTensor(1).rawHostData());
+    auto directScaleTensor = createShallowTensor<ScaleType>(
+        params.scaleTensor, directBundle.getTensor(2).rawHostData());
     auto directYTensor
-        = createShallowTensor<float>(params.yTensor, directBundle.getTensor(3).rawHostData());
+        = createShallowTensor<OutputType>(params.yTensor, directBundle.getTensor(3).rawHostData());
 
     CpuFpReferenceBlockScaleDequantize::dequantize(
         *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
 
     // Plan execution
     auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp8_e4m3, fp8_e8m0, float, float> plan(std::move(params));
+    BlockScaleDequantizePlan<XType, ScaleType, OutputType, float> plan(std::move(params));
     plan.execute(variantPack);
 
     const float tolerance = 1e-2f;
-    const CpuFpReferenceValidation<float> cpuRefOutputValidation(tolerance, tolerance);
-    EXPECT_TRUE(
-        cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
-}
-
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_E5M2_E8M0_FloatOutput)
-{
-    using namespace hipdnn_data_sdk::types;
-
-    auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP8_E5M2, DataType::FP8_E8M0, DataType::FLOAT);
-    const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
-
-    const auto& node = graphWrapper.getNode(0);
-    const auto& tensorMap = graphWrapper.getTensorMap();
-    const auto* nodeAttributes = node.attributes_as_BlockScaleDequantizeAttributes();
-    ASSERT_NE(nodeAttributes, nullptr);
-
-    std::vector<int32_t> blockSize;
-    if(nodeAttributes->block_size() != nullptr)
-    {
-        const auto* bs = nodeAttributes->block_size();
-        blockSize.assign(bs->begin(), bs->end());
-    }
-
-    GraphTensorBundle planBundle(tensorMap);
-    GraphTensorBundle directBundle(tensorMap);
-
-    auto* planXData = static_cast<fp8_e5m2*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp8_e5m2(1.0f);
-    planXData[1] = fp8_e5m2(1.0f);
-    planXData[2] = fp8_e5m2(2.0f);
-    planXData[3] = fp8_e5m2(2.0f);
-
-    auto* directXData = static_cast<fp8_e5m2*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp8_e5m2(1.0f);
-    directXData[1] = fp8_e5m2(1.0f);
-    directXData[2] = fp8_e5m2(2.0f);
-    directXData[3] = fp8_e5m2(2.0f);
-
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
-    planScaleData[0] = fp8_e8m0::from_bits(127);
-    planScaleData[1] = fp8_e8m0::from_bits(128);
-
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
-    directScaleData[0] = fp8_e8m0::from_bits(127);
-    directScaleData[1] = fp8_e8m0::from_bits(128);
-
-    BlockScaleDequantizeParams params(*tensorMap.at(nodeAttributes->x_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->scale_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->y_tensor_uid()),
-                                      blockSize,
-                                      nodeAttributes->is_negative_scale());
-
-    auto directXTensor
-        = createShallowTensor<fp8_e5m2>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
-    auto directYTensor
-        = createShallowTensor<float>(params.yTensor, directBundle.getTensor(3).rawHostData());
-
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
-
-    auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp8_e5m2, fp8_e8m0, float, float> plan(std::move(params));
-    plan.execute(variantPack);
-
-    const float tolerance = 1e-2f;
-    const CpuFpReferenceValidation<float> cpuRefOutputValidation(tolerance, tolerance);
-    EXPECT_TRUE(
-        cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
-}
-
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_E4M3_E8M0_HalfOutput)
-{
-    using namespace hipdnn_data_sdk::types;
-
-    auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP8_E4M3, DataType::FP8_E8M0, DataType::HALF);
-    const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
-
-    const auto& node = graphWrapper.getNode(0);
-    const auto& tensorMap = graphWrapper.getTensorMap();
-    const auto* nodeAttributes = node.attributes_as_BlockScaleDequantizeAttributes();
-    ASSERT_NE(nodeAttributes, nullptr);
-
-    std::vector<int32_t> blockSize;
-    if(nodeAttributes->block_size() != nullptr)
-    {
-        const auto* bs = nodeAttributes->block_size();
-        blockSize.assign(bs->begin(), bs->end());
-    }
-
-    GraphTensorBundle planBundle(tensorMap);
-    GraphTensorBundle directBundle(tensorMap);
-
-    auto* planXData = static_cast<fp8_e4m3*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp8_e4m3(1.0f);
-    planXData[1] = fp8_e4m3(1.0f);
-    planXData[2] = fp8_e4m3(2.0f);
-    planXData[3] = fp8_e4m3(2.0f);
-
-    auto* directXData = static_cast<fp8_e4m3*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp8_e4m3(1.0f);
-    directXData[1] = fp8_e4m3(1.0f);
-    directXData[2] = fp8_e4m3(2.0f);
-    directXData[3] = fp8_e4m3(2.0f);
-
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
-    planScaleData[0] = fp8_e8m0::from_bits(127);
-    planScaleData[1] = fp8_e8m0::from_bits(128);
-
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
-    directScaleData[0] = fp8_e8m0::from_bits(127);
-    directScaleData[1] = fp8_e8m0::from_bits(128);
-
-    BlockScaleDequantizeParams params(*tensorMap.at(nodeAttributes->x_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->scale_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->y_tensor_uid()),
-                                      blockSize,
-                                      nodeAttributes->is_negative_scale());
-
-    auto directXTensor
-        = createShallowTensor<fp8_e4m3>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
-    auto directYTensor
-        = createShallowTensor<half>(params.yTensor, directBundle.getTensor(3).rawHostData());
-
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
-
-    auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp8_e4m3, fp8_e8m0, half, float> plan(std::move(params));
-    plan.execute(variantPack);
-
-    const float tolerance = 1e-2f;
-    const CpuFpReferenceValidation<half> cpuRefOutputValidation(tolerance, tolerance);
-    EXPECT_TRUE(
-        cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
-}
-
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_E5M2_E8M0_HalfOutput)
-{
-    using namespace hipdnn_data_sdk::types;
-
-    auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP8_E5M2, DataType::FP8_E8M0, DataType::HALF);
-    const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
-
-    const auto& node = graphWrapper.getNode(0);
-    const auto& tensorMap = graphWrapper.getTensorMap();
-    const auto* nodeAttributes = node.attributes_as_BlockScaleDequantizeAttributes();
-    ASSERT_NE(nodeAttributes, nullptr);
-
-    std::vector<int32_t> blockSize;
-    if(nodeAttributes->block_size() != nullptr)
-    {
-        const auto* bs = nodeAttributes->block_size();
-        blockSize.assign(bs->begin(), bs->end());
-    }
-
-    GraphTensorBundle planBundle(tensorMap);
-    GraphTensorBundle directBundle(tensorMap);
-
-    auto* planXData = static_cast<fp8_e5m2*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp8_e5m2(1.0f);
-    planXData[1] = fp8_e5m2(1.0f);
-    planXData[2] = fp8_e5m2(2.0f);
-    planXData[3] = fp8_e5m2(2.0f);
-
-    auto* directXData = static_cast<fp8_e5m2*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp8_e5m2(1.0f);
-    directXData[1] = fp8_e5m2(1.0f);
-    directXData[2] = fp8_e5m2(2.0f);
-    directXData[3] = fp8_e5m2(2.0f);
-
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
-    planScaleData[0] = fp8_e8m0::from_bits(127);
-    planScaleData[1] = fp8_e8m0::from_bits(128);
-
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
-    directScaleData[0] = fp8_e8m0::from_bits(127);
-    directScaleData[1] = fp8_e8m0::from_bits(128);
-
-    BlockScaleDequantizeParams params(*tensorMap.at(nodeAttributes->x_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->scale_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->y_tensor_uid()),
-                                      blockSize,
-                                      nodeAttributes->is_negative_scale());
-
-    auto directXTensor
-        = createShallowTensor<fp8_e5m2>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
-    auto directYTensor
-        = createShallowTensor<half>(params.yTensor, directBundle.getTensor(3).rawHostData());
-
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
-
-    auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp8_e5m2, fp8_e8m0, half, float> plan(std::move(params));
-    plan.execute(variantPack);
-
-    const float tolerance = 1e-2f;
-    const CpuFpReferenceValidation<half> cpuRefOutputValidation(tolerance, tolerance);
+    const CpuFpReferenceValidation<OutputType> cpuRefOutputValidation(tolerance, tolerance);
     EXPECT_TRUE(
         cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
 }
 
 // ============================================================================
-// FP4 E2M1 plan tests
+// MX IsApplicable tests
 // ============================================================================
 
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_FP4E2M1_E8M0_FloatOutput)
-{
-    using namespace hipdnn_data_sdk::types;
-
-    auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP4_E2M1, DataType::FP8_E8M0, DataType::FLOAT);
-    const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
-
-    const auto& node = graphWrapper.getNode(0);
-    const auto& tensorMap = graphWrapper.getTensorMap();
-    const auto* nodeAttributes = node.attributes_as_BlockScaleDequantizeAttributes();
-    ASSERT_NE(nodeAttributes, nullptr);
-
-    std::vector<int32_t> blockSize;
-    if(nodeAttributes->block_size() != nullptr)
-    {
-        const auto* bs = nodeAttributes->block_size();
-        blockSize.assign(bs->begin(), bs->end());
-    }
-
-    GraphTensorBundle planBundle(tensorMap);
-    GraphTensorBundle directBundle(tensorMap);
-
-    auto* planXData = static_cast<fp4_e2m1*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp4_e2m1(1.0f);
-    planXData[1] = fp4_e2m1(1.5f);
-    planXData[2] = fp4_e2m1(2.0f);
-    planXData[3] = fp4_e2m1(3.0f);
-
-    auto* directXData = static_cast<fp4_e2m1*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp4_e2m1(1.0f);
-    directXData[1] = fp4_e2m1(1.5f);
-    directXData[2] = fp4_e2m1(2.0f);
-    directXData[3] = fp4_e2m1(3.0f);
-
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
-    planScaleData[0] = fp8_e8m0::from_bits(127);
-    planScaleData[1] = fp8_e8m0::from_bits(128);
-
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
-    directScaleData[0] = fp8_e8m0::from_bits(127);
-    directScaleData[1] = fp8_e8m0::from_bits(128);
-
-    BlockScaleDequantizeParams params(*tensorMap.at(nodeAttributes->x_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->scale_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->y_tensor_uid()),
-                                      blockSize,
-                                      nodeAttributes->is_negative_scale());
-
-    auto directXTensor
-        = createShallowTensor<fp4_e2m1>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
-    auto directYTensor
-        = createShallowTensor<float>(params.yTensor, directBundle.getTensor(3).rawHostData());
-
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
-
-    auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp4_e2m1, fp8_e8m0, float, float> plan(std::move(params));
-    plan.execute(variantPack);
-
-    const float tolerance = 1e-2f;
-    const CpuFpReferenceValidation<float> cpuRefOutputValidation(tolerance, tolerance);
-    EXPECT_TRUE(
-        cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
-}
-
-TEST(TestBlockScaleDequantizePlanBuilder, IsApplicable_FP4E2M1)
+TEST(TestBlockScaleDequantizePlanBuilder, IsApplicableFp4E2m1)
 {
     auto mxBuilder = createValidBlockScaleDequantizeMxGraph(
         DataType::FP4_E2M1, DataType::FP8_E8M0, DataType::FLOAT);
@@ -518,80 +277,7 @@ TEST(TestBlockScaleDequantizePlanBuilder, IsApplicable_FP4E2M1)
         wrongTypeBuilder.isApplicable(mxGraphWrapper.getNode(0), mxGraphWrapper.getTensorMap()));
 }
 
-// ============================================================================
-// FP6 E2M3 plan tests
-// ============================================================================
-
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_FP6E2M3_E8M0_FloatOutput)
-{
-    using namespace hipdnn_data_sdk::types;
-
-    auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP6_E2M3, DataType::FP8_E8M0, DataType::FLOAT);
-    const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
-
-    const auto& node = graphWrapper.getNode(0);
-    const auto& tensorMap = graphWrapper.getTensorMap();
-    const auto* nodeAttributes = node.attributes_as_BlockScaleDequantizeAttributes();
-    ASSERT_NE(nodeAttributes, nullptr);
-
-    std::vector<int32_t> blockSize;
-    if(nodeAttributes->block_size() != nullptr)
-    {
-        const auto* bs = nodeAttributes->block_size();
-        blockSize.assign(bs->begin(), bs->end());
-    }
-
-    GraphTensorBundle planBundle(tensorMap);
-    GraphTensorBundle directBundle(tensorMap);
-
-    auto* planXData = static_cast<fp6_e2m3*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp6_e2m3(1.0f);
-    planXData[1] = fp6_e2m3(1.5f);
-    planXData[2] = fp6_e2m3(2.0f);
-    planXData[3] = fp6_e2m3(3.0f);
-
-    auto* directXData = static_cast<fp6_e2m3*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp6_e2m3(1.0f);
-    directXData[1] = fp6_e2m3(1.5f);
-    directXData[2] = fp6_e2m3(2.0f);
-    directXData[3] = fp6_e2m3(3.0f);
-
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
-    planScaleData[0] = fp8_e8m0::from_bits(127);
-    planScaleData[1] = fp8_e8m0::from_bits(128);
-
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
-    directScaleData[0] = fp8_e8m0::from_bits(127);
-    directScaleData[1] = fp8_e8m0::from_bits(128);
-
-    BlockScaleDequantizeParams params(*tensorMap.at(nodeAttributes->x_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->scale_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->y_tensor_uid()),
-                                      blockSize,
-                                      nodeAttributes->is_negative_scale());
-
-    auto directXTensor
-        = createShallowTensor<fp6_e2m3>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
-    auto directYTensor
-        = createShallowTensor<float>(params.yTensor, directBundle.getTensor(3).rawHostData());
-
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
-
-    auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp6_e2m3, fp8_e8m0, float, float> plan(std::move(params));
-    plan.execute(variantPack);
-
-    const float tolerance = 1e-2f;
-    const CpuFpReferenceValidation<float> cpuRefOutputValidation(tolerance, tolerance);
-    EXPECT_TRUE(
-        cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
-}
-
-TEST(TestBlockScaleDequantizePlanBuilder, IsApplicable_FP6E2M3)
+TEST(TestBlockScaleDequantizePlanBuilder, IsApplicableFp6E2m3)
 {
     auto mxBuilder = createValidBlockScaleDequantizeMxGraph(
         DataType::FP6_E2M3, DataType::FP8_E8M0, DataType::FLOAT);
@@ -606,80 +292,7 @@ TEST(TestBlockScaleDequantizePlanBuilder, IsApplicable_FP6E2M3)
         fp6e2m3Builder.isApplicable(mxGraphWrapper.getNode(0), mxGraphWrapper.getTensorMap()));
 }
 
-// ============================================================================
-// FP6 E3M2 plan tests
-// ============================================================================
-
-TEST(TestBlockScaleDequantizePlan, ExecutePlan_FP6E3M2_E8M0_FloatOutput)
-{
-    using namespace hipdnn_data_sdk::types;
-
-    auto builder = createValidBlockScaleDequantizeMxGraph(
-        DataType::FP6_E3M2, DataType::FP8_E8M0, DataType::FLOAT);
-    const GraphWrapper graphWrapper(builder.GetBufferPointer(), builder.GetSize());
-
-    const auto& node = graphWrapper.getNode(0);
-    const auto& tensorMap = graphWrapper.getTensorMap();
-    const auto* nodeAttributes = node.attributes_as_BlockScaleDequantizeAttributes();
-    ASSERT_NE(nodeAttributes, nullptr);
-
-    std::vector<int32_t> blockSize;
-    if(nodeAttributes->block_size() != nullptr)
-    {
-        const auto* bs = nodeAttributes->block_size();
-        blockSize.assign(bs->begin(), bs->end());
-    }
-
-    GraphTensorBundle planBundle(tensorMap);
-    GraphTensorBundle directBundle(tensorMap);
-
-    auto* planXData = static_cast<fp6_e3m2*>(planBundle.getTensor(1).rawHostData());
-    planXData[0] = fp6_e3m2(1.0f);
-    planXData[1] = fp6_e3m2(1.5f);
-    planXData[2] = fp6_e3m2(2.0f);
-    planXData[3] = fp6_e3m2(4.0f);
-
-    auto* directXData = static_cast<fp6_e3m2*>(directBundle.getTensor(1).rawHostData());
-    directXData[0] = fp6_e3m2(1.0f);
-    directXData[1] = fp6_e3m2(1.5f);
-    directXData[2] = fp6_e3m2(2.0f);
-    directXData[3] = fp6_e3m2(4.0f);
-
-    auto* planScaleData = static_cast<fp8_e8m0*>(planBundle.getTensor(2).rawHostData());
-    planScaleData[0] = fp8_e8m0::from_bits(127);
-    planScaleData[1] = fp8_e8m0::from_bits(128);
-
-    auto* directScaleData = static_cast<fp8_e8m0*>(directBundle.getTensor(2).rawHostData());
-    directScaleData[0] = fp8_e8m0::from_bits(127);
-    directScaleData[1] = fp8_e8m0::from_bits(128);
-
-    BlockScaleDequantizeParams params(*tensorMap.at(nodeAttributes->x_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->scale_tensor_uid()),
-                                      *tensorMap.at(nodeAttributes->y_tensor_uid()),
-                                      blockSize,
-                                      nodeAttributes->is_negative_scale());
-
-    auto directXTensor
-        = createShallowTensor<fp6_e3m2>(params.xTensor, directBundle.getTensor(1).rawHostData());
-    auto directScaleTensor = createShallowTensor<fp8_e8m0>(params.scaleTensor,
-                                                           directBundle.getTensor(2).rawHostData());
-    auto directYTensor
-        = createShallowTensor<float>(params.yTensor, directBundle.getTensor(3).rawHostData());
-
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        *directXTensor, *directScaleTensor, *directYTensor, blockSize, false);
-
-    auto variantPack = planBundle.toHostVariantPack();
-    BlockScaleDequantizePlan<fp6_e3m2, fp8_e8m0, float, float> plan(std::move(params));
-    plan.execute(variantPack);
-
-    const float tolerance = 1e-1f;
-    const CpuFpReferenceValidation<float> cpuRefOutputValidation(tolerance, tolerance);
-    EXPECT_TRUE(
-        cpuRefOutputValidation.allClose(directBundle.getTensor(3), planBundle.getTensor(3)));
-}
-
-TEST(TestBlockScaleDequantizePlanBuilder, IsApplicable_FP6E3M2)
+TEST(TestBlockScaleDequantizePlanBuilder, IsApplicableFp6E3m2)
 {
     auto mxBuilder = createValidBlockScaleDequantizeMxGraph(
         DataType::FP6_E3M2, DataType::FP8_E8M0, DataType::FLOAT);
