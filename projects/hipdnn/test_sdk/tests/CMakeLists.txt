@@ -37,6 +37,7 @@ add_executable(
     utilities/TestScopedDirectory.cpp
     utilities/TestScopedEnvironmentVariableSetter.cpp
     utilities/TestSeeds.cpp
+    utilities/TestTensorDiff.cpp
     utilities/TestVectorLoggingUtils.cpp
     utilities/cpu_graph_executor/TestBlockScaleDequantizePlan.cpp
     utilities/cpu_graph_executor/TestBlockScaleDequantizeSignatureKey.cpp
