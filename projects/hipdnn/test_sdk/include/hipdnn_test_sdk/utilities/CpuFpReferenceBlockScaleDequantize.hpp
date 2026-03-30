@@ -17,11 +17,10 @@ class CpuFpReferenceBlockScaleDequantize
 public:
     /// Block scale dequantize: Y[i] = X[i] * scale[block_of(i)]
     ///
-    /// blockSize specifies the block size for each blocked dimension. Blocked dimensions
-    /// are identified by comparing X and scale tensor shapes: dimension d is blocked when
-    /// xDims[d] != scaleDims[d]. The i-th entry in blockSize corresponds to the i-th
-    /// blocked dimension, and scale_index[d] = x_index[d] / blockSize[i].
-    /// For unblocked dimensions, scale_index[d] = x_index[d].
+    /// blockSize entries map to the trailing dimensions of the tensor.
+    /// For a tensor with N dims and blockSize with K entries, blockSize[i]
+    /// applies to dimension (N - K + i). scale_index[d] = x_index[d] / blockSize[i]
+    /// for blocked trailing dims, and scale_index[d] = x_index[d] for leading dims.
     ///
     /// @param x                Input tensor (blocked low-precision data)
     /// @param scale            Per-block scale tensor
@@ -43,20 +42,11 @@ public:
             throw std::runtime_error("BlockScaleDequantize requires non-empty tensor dimensions.");
         }
 
-        // Build per-dimension block sizes from the blockSize attribute.
-        // blockSize entries map in order to dimensions where xDims[d] != scaleDims[d].
+        // blockSize entries map to the trailing dimensions of the tensor.
         std::vector<int64_t> effectiveBlockSize(xDims.size(), 1);
-        size_t blockSizeIdx = 0;
-        for(size_t d = 0; d < xDims.size() && d < scaleDims.size(); ++d)
+        for(size_t i = 0; i < blockSize.size() && i < xDims.size(); ++i)
         {
-            if(xDims[d] != scaleDims[d])
-            {
-                if(blockSizeIdx < blockSize.size())
-                {
-                    effectiveBlockSize[d] = blockSize[blockSizeIdx];
-                    ++blockSizeIdx;
-                }
-            }
+            effectiveBlockSize[xDims.size() - blockSize.size() + i] = blockSize[i];
         }
 
         auto dequantizeFunc = [&](const std::vector<int64_t>& xIndices) {

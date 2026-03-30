@@ -78,10 +78,10 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, NonTrivialScale)
 
 TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, MultiDimBlocking)
 {
-    // X: 2x64x32x32, Scale: 2x2x32x32 => block along dim 1, block_size=32
-    Tensor<float> xTensor({2, 64, 32, 32});
-    Tensor<float> scaleTensor({2, 2, 32, 32});
-    Tensor<float> yTensor({2, 64, 32, 32});
+    // X: 2x32x32x64, Scale: 2x32x32x2 => block along trailing dim 3, block_size=32
+    Tensor<float> xTensor({2, 32, 32, 64});
+    Tensor<float> scaleTensor({2, 32, 32, 2});
+    Tensor<float> yTensor({2, 32, 32, 64});
 
     xTensor.fillWithValue(1.0f);
     scaleTensor.fillWithValue(3.0f);
@@ -91,7 +91,7 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, MultiDimBlocking)
     auto tolerance = 1e-5f;
     // Spot check a few values
     EXPECT_NEAR(yTensor.getHostValue(0, 0, 0, 0), 3.0f, tolerance);
-    EXPECT_NEAR(yTensor.getHostValue(1, 63, 31, 31), 3.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(1, 31, 31, 63), 3.0f, tolerance);
 }
 
 TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, IsNegativeScaleFloat)

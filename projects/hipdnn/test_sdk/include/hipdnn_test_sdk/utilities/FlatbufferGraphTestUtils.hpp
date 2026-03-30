@@ -2062,8 +2062,8 @@ inline flatbuffers::FlatBufferBuilder createValidEngineDetails(int64_t engineId)
 }
 
 inline flatbuffers::FlatBufferBuilder
-    createValidBlockScaleDequantizeGraph(const std::vector<int64_t>& strides = {65536, 1024, 32, 1},
-                                         const std::vector<int64_t>& dims = {2, 64, 32, 32},
+    createValidBlockScaleDequantizeGraph(const std::vector<int64_t>& strides = {65536, 2048, 64, 1},
+                                         const std::vector<int64_t>& dims = {2, 32, 32, 64},
                                          hipdnn_data_sdk::data_objects::DataType inputDataType
                                          = hipdnn_data_sdk::data_objects::DataType::FLOAT,
                                          hipdnn_data_sdk::data_objects::DataType computeDataType
@@ -2073,8 +2073,8 @@ inline flatbuffers::FlatBufferBuilder
     std::vector<::flatbuffers::Offset<hipdnn_data_sdk::data_objects::TensorAttributes>>
         tensorAttributes;
 
-    const std::vector<int64_t> scaleDims = {2, 2, 32, 32};
-    const std::vector<int64_t> scaleStrides = {2048, 1024, 32, 1};
+    const std::vector<int64_t> scaleDims = {2, 32, 32, 2};
+    const std::vector<int64_t> scaleStrides = {2048, 64, 2, 1};
 
     tensorAttributes.push_back(hipdnn_data_sdk::data_objects::CreateTensorAttributesDirect(
         builder, 1, "x", inputDataType, &strides, &dims));
