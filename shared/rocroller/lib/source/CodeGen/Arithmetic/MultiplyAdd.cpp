@@ -81,17 +81,20 @@ namespace rocRoller
 
         bool mixed = false;
         int  aType = 3, xType = 3, yType = 3;
-        if(dTypeA == DataType::Float || dTypeA == DataType::Halfx2)
+        if(dTypeA == DataType::Float || dTypeA == DataType::Halfx2
+           || dTypeA == DataType::BFloat16x2)
         {
-            aType = (dTypeA == DataType::Halfx2) ? 1 : 0;
+            aType = (dTypeA == DataType::Halfx2 || dTypeA == DataType::BFloat16x2) ? 1 : 0;
         }
-        if(dTypeX == DataType::Float || dTypeX == DataType::Halfx2)
+        if(dTypeX == DataType::Float || dTypeX == DataType::Halfx2
+           || dTypeX == DataType::BFloat16x2)
         {
-            xType = (dTypeX == DataType::Halfx2) ? 1 : 0;
+            xType = (dTypeX == DataType::Halfx2 || dTypeX == DataType::BFloat16x2) ? 1 : 0;
         }
-        if(dTypeY == DataType::Float || dTypeY == DataType::Halfx2)
+        if(dTypeY == DataType::Float || dTypeY == DataType::Halfx2
+           || dTypeY == DataType::BFloat16x2)
         {
-            yType = (dTypeY == DataType::Halfx2) ? 1 : 0;
+            yType = (dTypeY == DataType::Halfx2 || dTypeY == DataType::BFloat16x2) ? 1 : 0;
         }
 
         //Only select combinations of FP32 or FP16
