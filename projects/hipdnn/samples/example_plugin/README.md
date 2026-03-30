@@ -246,6 +246,68 @@ IRunnableKernel::launch(stream, args...)
   → hipModuleLaunchKernel() executes on GPU
 ```
 
+### GPU Kernel Compilation: Source, Module, Kernel
+
+GPU kernel compilation follows a three-stage pipeline.  A GPU source file can
+define multiple kernel functions (each marked `__global__`), but the entire file
+is compiled as a single unit.  The compiled binary is loaded as a module, and
+individual kernels are then extracted from it by name.  The three DI interfaces
+(`IKernelCompiler`, `ICompiledProgram`, `IRunnableKernel`) model each stage
+directly.
+
+Note that compilation is distinct from the source embedding described in the
+HIPRTC Compilation Flow above.  At CMake configure time, all kernel `.cpp` files
+are embedded as C++ string literals into a generated source registry -- this is
+just text storage, not GPU compilation.  At runtime, each Plan compiles only its
+own kernel source file via HIPRTC, and only when its engine is selected for a
+graph.  `ReluPlan` compiles `ReluForward.cpp` and `ConvFwdPlan` compiles
+`ConvForwardNaive.cpp` independently; unused engines never trigger compilation.
+
+**Stage 1: Source compilation.** A GPU source file (e.g., `ReluForward.cpp`) is
+compiled into a binary blob at runtime via HIPRTC.  This is the expensive step.
+The compiler reads source code, optimizes it for the target GPU architecture,
+and produces machine code.  The result is loaded as a HIP **module**
+(`hipModule_t`).  A module is analogous to a `.so` or `.dll`, a single binary
+containing compiled code for all `__global__` functions defined in that source
+file.  `IKernelCompiler::compile()` performs this step and returns an
+`ICompiledProgram` representing the loaded module.
+
+**Stage 2: Kernel extraction.** Once a module is loaded, individual kernel
+functions are extracted by name.  This is a cheap lookup (`hipModuleGetFunction`)
+as no recompilation occurs.  A single module can contain multiple kernels.  For
+example, a source file defining both `add_vectors` and `multiply_vectors` kernels
+would be compiled once into one module, and each kernel extracted separately:
+
+```cpp
+auto module = compiler.compile("MyKernels.cpp", options);
+auto addKernel = module->getRunnableKernel("add_vectors");
+auto mulKernel = module->getRunnableKernel("multiply_vectors");
+```
+
+**Stage 3: Kernel launch.** The extracted kernel is configured (block size, grid
+size, shared memory) and launched on a HIP stream.  `IRunnableKernel::launch()`
+performs this step.
+
+**Module lifetime matters.** The kernel function pointer (`hipFunction_t`)
+extracted from a module is only valid while that module remains loaded.  If the
+module is unloaded (via `hipModuleUnload` in `HipCompiledProgram`'s destructor),
+all kernel function pointers from it become invalid.  Conseqently, each Plan
+holds both members:
+
+```cpp
+std::unique_ptr<ICompiledProgram> _compiledProgram;  // keeps module loaded
+std::unique_ptr<IRunnableKernel> _kernel; // function pointer into the module
+```
+
+The `_compiledProgram` member is never accessed after `compile()` completes, it
+exists solely to prevent the module from being unloaded while the kernel is in
+use.
+
+In this example plugin, each source file contains exactly one kernel, so the
+one-module-to-many-kernels capability is not exercised.  The three-stage
+structure is preserved because it accurately models the HIP runtime API and
+prepares developers for the general case.
+
 ### DI Interfaces for Testability
 
 The HIPRTC infrastructure is abstracted behind dependency-injection interfaces,
