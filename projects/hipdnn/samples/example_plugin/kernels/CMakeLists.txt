@@ -5,6 +5,7 @@
 set(KERNEL_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/relu/ReluForward.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/conv/ConvForwardNaive.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/common/IndexType.hpp
 )
 
 # All generated output files produced by the embedding script

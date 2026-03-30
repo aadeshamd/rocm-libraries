@@ -5,6 +5,8 @@
 // Compiled at runtime via HIPRTC and launched by ConvFwdPlan.
 // Each thread computes one output element.
 
+#include "IndexType.hpp"
+
 extern "C" __global__ void conv_forward_naive_kernel(const float* input,
                                                      const float* weight,
                                                      float* output,
@@ -22,8 +24,8 @@ extern "C" __global__ void conv_forward_naive_kernel(const float* input,
                                                      int strideH,
                                                      int strideW)
 {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    int totalOutputElements = N * K * outH * outW;
+    IndexType idx = blockIdx.x * blockDim.x + threadIdx.x;
+    IndexType totalOutputElements = N * K * outH * outW;
 
     if(idx >= totalOutputElements)
     {
