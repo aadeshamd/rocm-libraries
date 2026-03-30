@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -83,10 +82,7 @@ protected:
         EXPECT_CALL(*rawCompiledProgram, getRunnableKernel("conv_forward_naive_kernel"))
             .WillOnce(Return(testing::ByMove(std::move(kernel))));
 
-        hipDeviceProp_t props = {};
-        snprintf(props.gcnArchName, sizeof(props.gcnArchName), "%s", "gfx90a:sramecc+:xnack-");
-
-        plan->compile(mockCompiler, props);
+        plan->compile(mockCompiler);
         return plan;
     }
 };
@@ -114,7 +110,7 @@ TEST_F(ConvFwdPlanTest, GetWorkspaceSize_ReturnsZero)
     EXPECT_EQ(plan.getWorkspaceSize(handle), 0u);
 }
 
-TEST_F(ConvFwdPlanTest, Compile_CallsCompilerWithCorrectArchitecture)
+TEST_F(ConvFwdPlanTest, Compile_CallsCompilerWithCorrectFilename)
 {
     ConvFwdParams params{kInputUid,
                          kWeightUid,
@@ -139,17 +135,14 @@ TEST_F(ConvFwdPlanTest, Compile_CallsCompilerWithCorrectArchitecture)
     auto* rawProgram = compiledProgram.get();
     auto kernel = std::make_unique<MockRunnableKernel>();
 
-    EXPECT_CALL(mockCompiler,
-                compile("ConvForwardNaive.cpp", std::vector<std::string>{"--offload-arch=gfx90a"}))
+    // Verify the compiler receives the correct kernel filename with empty options.
+    EXPECT_CALL(mockCompiler, compile("ConvForwardNaive.cpp", std::vector<std::string>{}))
         .WillOnce(Return(testing::ByMove(std::move(compiledProgram))));
 
     EXPECT_CALL(*rawProgram, getRunnableKernel("conv_forward_naive_kernel"))
         .WillOnce(Return(testing::ByMove(std::move(kernel))));
 
-    hipDeviceProp_t props = {};
-    snprintf(props.gcnArchName, sizeof(props.gcnArchName), "%s", "gfx90a:sramecc+:xnack-");
-
-    plan->compile(mockCompiler, props);
+    plan->compile(mockCompiler);
 }
 
 TEST_F(ConvFwdPlanTest, Execute_SetsGridAndBlockSizeAndLaunches)

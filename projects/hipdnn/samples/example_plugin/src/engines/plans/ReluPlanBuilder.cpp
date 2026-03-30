@@ -15,10 +15,8 @@
 namespace example_plugin
 {
 
-ReluPlanBuilder::ReluPlanBuilder(const IKernelCompiler& compiler,
-                                 const IDevicePropertyProvider& devicePropertyProvider)
+ReluPlanBuilder::ReluPlanBuilder(const IKernelCompiler& compiler)
     : _compiler(compiler)
-    , _devicePropertyProvider(devicePropertyProvider)
 {
 }
 
@@ -70,8 +68,8 @@ size_t ReluPlanBuilder::getMaxWorkspaceSize(
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/,
     const ExamplePluginSettings& /*executionSettings*/) const
 {
-    // Workspace demonstration: allocate a small scratch buffer
-    return sizeof(float);
+    // ReLU does not require workspace
+    return 0;
 }
 
 void ReluPlanBuilder::initializeExecutionSettings(
@@ -138,7 +136,7 @@ void ReluPlanBuilder::buildPlan(
 
     ReluParams params{inputUid, outputUid, numElements, settings.reluNegativeSlope};
     auto plan = std::make_unique<ReluPlan>(std::move(params));
-    plan->compile(_compiler, _devicePropertyProvider.getDeviceProperties());
+    plan->compile(_compiler);
 
     executionContext.setPlan(std::move(plan));
 }

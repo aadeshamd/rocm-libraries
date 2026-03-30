@@ -6,7 +6,6 @@
 #include <hipdnn_data_sdk/utilities/EngineNames.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
 
-#include "CurrentDevicePropertyProvider.hpp"
 #include "engines/ExamplePluginEngine.hpp"
 #include "engines/plans/ConvFwdPlanBuilder.hpp"
 #include "engines/plans/ReluPlanBuilder.hpp"
@@ -30,21 +29,21 @@ const std::vector<ExamplePluginContainer::EngineDefinition>&
 {
     static const std::vector<EngineDefinition> s_engineDefinitions = {
         {EXAMPLE_PLUGIN_RELU_ENGINE_ID,
-         [](const IKernelCompiler& compiler, const IDevicePropertyProvider& deviceProps)
+         [](const IKernelCompiler& compiler)
              -> std::unique_ptr<hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
                                                            ExamplePluginSettings,
                                                            ExamplePluginContext>> {
              auto engine = std::make_unique<ExamplePluginEngine>(EXAMPLE_PLUGIN_RELU_ENGINE_ID);
-             engine->addPlanBuilder(std::make_unique<ReluPlanBuilder>(compiler, deviceProps));
+             engine->addPlanBuilder(std::make_unique<ReluPlanBuilder>(compiler));
              return engine;
          }},
         {EXAMPLE_PLUGIN_CONV_FWD_ENGINE_ID,
-         [](const IKernelCompiler& compiler, const IDevicePropertyProvider& deviceProps)
+         [](const IKernelCompiler& compiler)
              -> std::unique_ptr<hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
                                                            ExamplePluginSettings,
                                                            ExamplePluginContext>> {
              auto engine = std::make_unique<ExamplePluginEngine>(EXAMPLE_PLUGIN_CONV_FWD_ENGINE_ID);
-             engine->addPlanBuilder(std::make_unique<ConvFwdPlanBuilder>(compiler, deviceProps));
+             engine->addPlanBuilder(std::make_unique<ConvFwdPlanBuilder>(compiler));
              return engine;
          }},
     };
@@ -81,7 +80,6 @@ ExamplePluginContainer::ExamplePluginContainer()
     HIPDNN_PLUGIN_LOG_INFO("Creating ExamplePluginContainer");
 
     _kernelCompiler = std::make_unique<HipKernelCompiler>();
-    _devicePropertyProvider = std::make_unique<CurrentDevicePropertyProvider>();
 
     _engineManager = std::make_unique<hipdnn_plugin_sdk::EngineManager<ExamplePluginHandle,
                                                                        ExamplePluginSettings,
@@ -89,8 +87,7 @@ ExamplePluginContainer::ExamplePluginContainer()
 
     for(const auto& engineDefinition : getEngineDefinitions())
     {
-        _engineManager->addEngine(
-            engineDefinition.createEngine(*_kernelCompiler, *_devicePropertyProvider));
+        _engineManager->addEngine(engineDefinition.createEngine(*_kernelCompiler));
     }
 }
 

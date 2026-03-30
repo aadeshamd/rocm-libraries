@@ -12,7 +12,6 @@
 #include "ExamplePluginContext.hpp"
 #include "ExamplePluginHandle.hpp"
 #include "ExamplePluginSettings.hpp"
-#include "hip/IDevicePropertyProvider.hpp"
 #include "hip/IKernelCompiler.hpp"
 
 namespace example_plugin
@@ -28,8 +27,7 @@ class ConvFwdPlanBuilder : public hipdnn_plugin_sdk::IPlanBuilder<ExamplePluginH
                                                                   ExamplePluginContext>
 {
 public:
-    ConvFwdPlanBuilder(const IKernelCompiler& compiler,
-                       const IDevicePropertyProvider& devicePropertyProvider);
+    explicit ConvFwdPlanBuilder(const IKernelCompiler& compiler);
     ~ConvFwdPlanBuilder() override = default;
 
     ConvFwdPlanBuilder(const ConvFwdPlanBuilder&) = delete;
@@ -60,7 +58,6 @@ public:
 
 private:
     const IKernelCompiler& _compiler;
-    const IDevicePropertyProvider& _devicePropertyProvider;
 };
 
 } // namespace example_plugin

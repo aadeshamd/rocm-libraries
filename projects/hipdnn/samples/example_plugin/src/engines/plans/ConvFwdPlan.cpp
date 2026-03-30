@@ -3,8 +3,6 @@
 
 #include "ConvFwdPlan.hpp"
 
-#include <string>
-
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
 
@@ -19,21 +17,11 @@ ConvFwdPlan::ConvFwdPlan(ConvFwdParams&& params)
 {
 }
 
-void ConvFwdPlan::compile(const IKernelCompiler& kernelCompiler,
-                          const hipDeviceProp_t& deviceProperties)
+void ConvFwdPlan::compile(const IKernelCompiler& kernelCompiler)
 {
-    // Extract base GPU architecture from gcnArchName
-    std::string archName(deviceProperties.gcnArchName);
-    auto colonPos = archName.find(':');
-    if(colonPos != std::string::npos)
-    {
-        archName = archName.substr(0, colonPos);
-    }
+    HIPDNN_PLUGIN_LOG_INFO("Compiling ConvFwdPlan");
 
-    HIPDNN_PLUGIN_LOG_INFO("Compiling ConvFwdPlan for architecture: " << archName);
-
-    _compiledProgram
-        = kernelCompiler.compile("ConvForwardNaive.cpp", {"--offload-arch=" + archName});
+    _compiledProgram = kernelCompiler.compile("ConvForwardNaive.cpp", {});
     _kernel = _compiledProgram->getRunnableKernel("conv_forward_naive_kernel");
 }
 

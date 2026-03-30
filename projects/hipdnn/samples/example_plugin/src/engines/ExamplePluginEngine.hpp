@@ -13,10 +13,13 @@
 namespace example_plugin
 {
 
-/// Engine implementation for the example plugin.
+/// Generic engine coordinator — copy this class as-is for your own plugin.
 ///
-/// This engine manages a collection of plan builders and delegates
-/// applicability checks and plan creation to them.
+/// This engine contains no operation-specific logic. It manages a collection
+/// of PlanBuilders and delegates all work (applicability checks, knob
+/// reporting, workspace sizing, and plan creation) to them. Typically,
+/// customized behavior can be added by writing your own PlanBuilder,
+/// not by modifying this class.
 class ExamplePluginEngine : public hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
                                                               ExamplePluginSettings,
                                                               ExamplePluginContext>

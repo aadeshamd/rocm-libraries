@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstring>
 #include <memory>
 
 #include <hipdnn_data_sdk/flatbuffer_utilities/EngineConfigWrapper.hpp>
@@ -13,7 +12,6 @@
 #include "engines/plans/ConvFwdPlan.hpp"
 #include "engines/plans/ConvFwdPlanBuilder.hpp"
 #include "mocks/MockCompiledProgram.hpp"
-#include "mocks/MockDevicePropertyProvider.hpp"
 #include "mocks/MockKernelCompiler.hpp"
 #include "mocks/MockRunnableKernel.hpp"
 
@@ -26,14 +24,13 @@ class ConvFwdPlanBuilderTest : public ::testing::Test
 {
 protected:
     MockKernelCompiler mockCompiler;
-    MockDevicePropertyProvider mockDeviceProps;
     ExamplePluginHandle handle;
 
     std::unique_ptr<ConvFwdPlanBuilder> planBuilder;
 
     void SetUp() override
     {
-        planBuilder = std::make_unique<ConvFwdPlanBuilder>(mockCompiler, mockDeviceProps);
+        planBuilder = std::make_unique<ConvFwdPlanBuilder>(mockCompiler);
     }
 };
 
@@ -105,10 +102,6 @@ TEST_F(ConvFwdPlanBuilderTest, BuildPlan_SetsPlanOnContext)
                                                                       configFbb.GetSize());
 
     // Set up mock expectations for buildPlan
-    hipDeviceProp_t props = {};
-    snprintf(props.gcnArchName, sizeof(props.gcnArchName), "%s", "gfx90a");
-    EXPECT_CALL(mockDeviceProps, getDeviceProperties()).WillOnce(Return(props));
-
     auto compiledProgram = std::make_unique<MockCompiledProgram>();
     auto* rawProgram = compiledProgram.get();
     auto kernel = std::make_unique<MockRunnableKernel>();

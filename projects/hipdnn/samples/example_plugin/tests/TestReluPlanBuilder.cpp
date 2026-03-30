@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include <cstring>
 #include <memory>
 
 #include <hipdnn_data_sdk/flatbuffer_utilities/EngineConfigWrapper.hpp>
@@ -13,7 +12,6 @@
 #include "engines/plans/ReluPlan.hpp"
 #include "engines/plans/ReluPlanBuilder.hpp"
 #include "mocks/MockCompiledProgram.hpp"
-#include "mocks/MockDevicePropertyProvider.hpp"
 #include "mocks/MockKernelCompiler.hpp"
 #include "mocks/MockRunnableKernel.hpp"
 
@@ -26,14 +24,13 @@ class ReluPlanBuilderTest : public ::testing::Test
 {
 protected:
     MockKernelCompiler mockCompiler;
-    MockDevicePropertyProvider mockDeviceProps;
     ExamplePluginHandle handle;
 
     std::unique_ptr<ReluPlanBuilder> planBuilder;
 
     void SetUp() override
     {
-        planBuilder = std::make_unique<ReluPlanBuilder>(mockCompiler, mockDeviceProps);
+        planBuilder = std::make_unique<ReluPlanBuilder>(mockCompiler);
     }
 };
 
@@ -73,13 +70,13 @@ TEST_F(ReluPlanBuilderTest, IsApplicable_ConvFwdGraph_ReturnsFalse)
     EXPECT_FALSE(planBuilder->isApplicable(handle, graph));
 }
 
-TEST_F(ReluPlanBuilderTest, GetMaxWorkspaceSize_ReturnsSizeofFloat)
+TEST_F(ReluPlanBuilderTest, GetMaxWorkspaceSize_ReturnsZero)
 {
     auto fbb = createReluFwdGraph();
     hipdnn_data_sdk::flatbuffer_utilities::GraphWrapper graph(fbb.GetBufferPointer(),
                                                               fbb.GetSize());
     ExamplePluginSettings settings;
-    EXPECT_EQ(planBuilder->getMaxWorkspaceSize(handle, graph, settings), sizeof(float));
+    EXPECT_EQ(planBuilder->getMaxWorkspaceSize(handle, graph, settings), 0u);
 }
 
 TEST_F(ReluPlanBuilderTest, GetCustomKnobs_ReturnsNegativeSlopeKnob)
@@ -103,10 +100,6 @@ TEST_F(ReluPlanBuilderTest, BuildPlan_SetsPlanOnContext)
                                                                       configFbb.GetSize());
 
     // Set up mock expectations for buildPlan
-    hipDeviceProp_t props = {};
-    snprintf(props.gcnArchName, sizeof(props.gcnArchName), "%s", "gfx942");
-    EXPECT_CALL(mockDeviceProps, getDeviceProperties()).WillOnce(Return(props));
-
     auto compiledProgram = std::make_unique<MockCompiledProgram>();
     auto* rawProgram = compiledProgram.get();
     auto kernel = std::make_unique<MockRunnableKernel>();

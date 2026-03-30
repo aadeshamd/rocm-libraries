@@ -31,7 +31,7 @@ public:
 
     ~ReluPlan() override = default;
 
-    void compile(const IKernelCompiler& kernelCompiler, const hipDeviceProp_t& deviceProperties);
+    void compile(const IKernelCompiler& kernelCompiler);
 
     size_t getWorkspaceSize(const ExamplePluginHandle& handle) const override;
 

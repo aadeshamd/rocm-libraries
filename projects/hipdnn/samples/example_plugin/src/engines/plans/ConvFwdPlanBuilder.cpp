@@ -16,10 +16,8 @@ namespace example_plugin
 
 static constexpr int64_t kDefaultBlockSize = 256;
 
-ConvFwdPlanBuilder::ConvFwdPlanBuilder(const IKernelCompiler& compiler,
-                                       const IDevicePropertyProvider& devicePropertyProvider)
+ConvFwdPlanBuilder::ConvFwdPlanBuilder(const IKernelCompiler& compiler)
     : _compiler(compiler)
-    , _devicePropertyProvider(devicePropertyProvider)
 {
 }
 
@@ -84,6 +82,7 @@ size_t ConvFwdPlanBuilder::getMaxWorkspaceSize(
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/,
     const ExamplePluginSettings& /*executionSettings*/) const
 {
+    // The convolution kernel in this example does not require a workspace.
     return 0;
 }
 
@@ -217,7 +216,7 @@ void ConvFwdPlanBuilder::buildPlan(
                          strideW,
                          static_cast<int64_t>(blockSize)};
     auto plan = std::make_unique<ConvFwdPlan>(std::move(params));
-    plan->compile(_compiler, _devicePropertyProvider.getDeviceProperties());
+    plan->compile(_compiler);
 
     executionContext.setPlan(std::move(plan));
 }

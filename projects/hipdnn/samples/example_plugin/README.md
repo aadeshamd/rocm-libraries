@@ -53,14 +53,12 @@ example_plugin/
 │   ├── ExamplePluginHandle.hpp/cpp      # Plugin handle (stream, container reference)
 │   ├── ExamplePluginContext.hpp         # Execution context
 │   ├── ExamplePluginSettings.hpp        # Execution settings (reluNegativeSlope)
-│   ├── CurrentDevicePropertyProvider.hpp  # IDevicePropertyProvider implementation
 │   ├── hip/                             # HIPRTC infrastructure (DI interfaces + impls)
 │   │   ├── IKernelCompiler.hpp          # Interface: compile(filename, options)
 │   │   ├── ICompiledProgram.hpp         # Interface: getRunnableKernel(name)
 │   │   ├── IRunnableKernel.hpp          # Interface: launch(stream, args...)
-│   │   ├── IDevicePropertyProvider.hpp  # Interface: getDeviceProperties()
 │   │   ├── HipUtils.hpp                # HIP_CHECK and HIPRTC_CHECK error macros
-│   │   ├── HipKernelCompiler.hpp        # Concrete IKernelCompiler (HIPRTC)
+│   │   ├── HipKernelCompiler.hpp        # Concrete IKernelCompiler (HIPRTC, handles --offload-arch)
 │   │   ├── HipCompiledProgram.hpp/cpp   # Concrete ICompiledProgram (HIPRTC compilation + module)
 │   │   └── HipRunnableKernel.hpp/cpp    # Concrete IRunnableKernel (hipFunction_t)
 │   └── engines/
@@ -77,9 +75,7 @@ example_plugin/
 │   ├── mocks/                           # Mock objects for GPU-free unit testing
 │   │   ├── MockKernelCompiler.hpp
 │   │   ├── MockCompiledProgram.hpp
-│   │   ├── MockRunnableKernel.hpp
-│   │   ├── MockDevicePropertyProvider.hpp
-│   │   └── MockPlanBuilder.hpp
+│   │   └── MockRunnableKernel.hpp
 │   ├── TestExamplePluginContainer.cpp
 │   ├── TestReluPlanBuilder.cpp
 │   ├── TestReluPlan.cpp
@@ -182,7 +178,7 @@ required C entry points when five macros are defined in
 ```
 Container
 ├── Owns EngineManager<Handle, Settings, Context>
-├── Owns IKernelCompiler (HipKernelCompiler) and IDevicePropertyProvider
+├── Owns IKernelCompiler (HipKernelCompiler)
 ├── Registers engines via getEngineDefinitions()
 │   ├── Engine (EXAMPLE_PLUGIN_RELU_ENGINE)
 │   │   └── PlanBuilder (ReluPlanBuilder)
@@ -219,8 +215,8 @@ Settings
    `ConvMode::CROSS_CORRELATION`).
 
 4. `buildPlan()` extracts tensor metadata (UIDs, dimensions) from the graph,
-   creates a **Plan** object, and calls `plan->compile(deviceProps)` to compile
-   the GPU kernel via HIPRTC.
+   creates a **Plan** object, and calls `plan->compile(kernelCompiler)` to
+   compile the GPU kernel via HIPRTC.
 
 5. `Plan::execute()` reads device pointers from the variant pack buffers
    (matched by tensor UID) and launches the pre-compiled GPU kernel on the
@@ -260,7 +256,6 @@ enabling unit tests to run without GPU hardware:
 | `IKernelCompiler` | `HipKernelCompiler` | `MockKernelCompiler` |
 | `ICompiledProgram` | `HipCompiledProgram` | `MockCompiledProgram` |
 | `IRunnableKernel` | `HipRunnableKernel` | `MockRunnableKernel` |
-| `IDevicePropertyProvider` | `CurrentDevicePropertyProvider` | `MockDevicePropertyProvider` |
 
 The Container creates the production implementations at construction time and
 passes them to engine factory lambdas.  Unit tests substitute the mocks.
@@ -397,10 +392,10 @@ alongside ReLU.  The general pattern:
    `embed_kernel_sources()` function so it is embedded at configure time.
 
 3. **Create a PlanBuilder** in `src/engines/plans/`:
-   - Accept `IKernelCompiler&` and `IDevicePropertyProvider&` via constructor
+   - Accept `IKernelCompiler&` via constructor
    - Implement `isApplicable()` to match the graph's node attributes
    - Implement `buildPlan()` to extract tensor metadata, create a Plan, and
-     call `plan->compile(deviceProps.getDeviceProperties())`
+     call `plan->compile(kernelCompiler)`
 
 4. **Create a Plan** in `src/engines/plans/`:
    - Inherit `ICompilablePlan<ExamplePluginHandle>` from the plugin SDK
@@ -415,9 +410,9 @@ alongside ReLU.  The general pattern:
 
    // In getEngineDefinitions():
    {YOUR_ENGINE_ID,
-    [](const IKernelCompiler& compiler, const IDevicePropertyProvider& deviceProps) {
+    [](const IKernelCompiler& compiler) {
         auto engine = std::make_unique<ExamplePluginEngine>(YOUR_ENGINE_ID);
-        engine->addPlanBuilder(std::make_unique<YourPlanBuilder>(compiler, deviceProps));
+        engine->addPlanBuilder(std::make_unique<YourPlanBuilder>(compiler));
         return engine;
     }},
    ```

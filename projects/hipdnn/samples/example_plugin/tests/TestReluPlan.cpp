@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
-#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -55,11 +54,7 @@ protected:
         EXPECT_CALL(*rawCompiledProgram, getRunnableKernel("relu_forward_kernel"))
             .WillOnce(Return(testing::ByMove(std::move(kernel))));
 
-        // Create device properties with test architecture
-        hipDeviceProp_t props = {};
-        snprintf(props.gcnArchName, sizeof(props.gcnArchName), "%s", "gfx90a:sramecc+:xnack-");
-
-        plan->compile(mockCompiler, props);
+        plan->compile(mockCompiler);
         return plan;
     }
 };
@@ -72,7 +67,7 @@ TEST_F(ReluPlanTest, GetWorkspaceSize_ReturnsZero)
     EXPECT_EQ(plan.getWorkspaceSize(handle), 0u);
 }
 
-TEST_F(ReluPlanTest, Compile_CallsCompilerWithCorrectArchitecture)
+TEST_F(ReluPlanTest, Compile_CallsCompilerWithCorrectFilename)
 {
     ReluParams params{kInputUid, kOutputUid, kNumElements, kNegativeSlope};
     auto plan = std::make_unique<ReluPlan>(std::move(params));
@@ -82,18 +77,14 @@ TEST_F(ReluPlanTest, Compile_CallsCompilerWithCorrectArchitecture)
 
     auto kernel = std::make_unique<MockRunnableKernel>();
 
-    // Verify the compiler receives the correct architecture option
-    EXPECT_CALL(mockCompiler,
-                compile("ReluForward.cpp", std::vector<std::string>{"--offload-arch=gfx90a"}))
+    // Verify the compiler receives the correct kernel filename with empty options.
+    EXPECT_CALL(mockCompiler, compile("ReluForward.cpp", std::vector<std::string>{}))
         .WillOnce(Return(testing::ByMove(std::move(compiledProgram))));
 
     EXPECT_CALL(*rawProgram, getRunnableKernel("relu_forward_kernel"))
         .WillOnce(Return(testing::ByMove(std::move(kernel))));
 
-    hipDeviceProp_t props = {};
-    snprintf(props.gcnArchName, sizeof(props.gcnArchName), "%s", "gfx90a:sramecc+:xnack-");
-
-    plan->compile(mockCompiler, props);
+    plan->compile(mockCompiler);
 }
 
 TEST_F(ReluPlanTest, Execute_SetsGridAndBlockSizeAndLaunches)

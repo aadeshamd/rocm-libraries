@@ -3,8 +3,6 @@
 
 #include "ReluPlan.hpp"
 
-#include <string>
-
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
 
@@ -19,21 +17,11 @@ ReluPlan::ReluPlan(ReluParams&& params)
 {
 }
 
-void ReluPlan::compile(const IKernelCompiler& kernelCompiler,
-                       const hipDeviceProp_t& deviceProperties)
+void ReluPlan::compile(const IKernelCompiler& kernelCompiler)
 {
-    // Extract base GPU architecture from gcnArchName
-    // e.g., "gfx90a:sramecc+:xnack-" -> "gfx90a"
-    std::string archName(deviceProperties.gcnArchName);
-    auto colonPos = archName.find(':');
-    if(colonPos != std::string::npos)
-    {
-        archName = archName.substr(0, colonPos);
-    }
+    HIPDNN_PLUGIN_LOG_INFO("Compiling ReluPlan");
 
-    HIPDNN_PLUGIN_LOG_INFO("Compiling ReluPlan for architecture: " << archName);
-
-    _compiledProgram = kernelCompiler.compile("ReluForward.cpp", {"--offload-arch=" + archName});
+    _compiledProgram = kernelCompiler.compile("ReluForward.cpp", {});
     _kernel = _compiledProgram->getRunnableKernel("relu_forward_kernel");
 }
 

@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "ExamplePluginHandle.hpp"
-#include "hip/IDevicePropertyProvider.hpp"
 #include "hip/IKernelCompiler.hpp"
 
 namespace example_plugin
@@ -16,8 +15,8 @@ namespace example_plugin
 
 /// Container class that manages engine instantiation and ownership.
 ///
-/// Creates DI dependencies (IKernelCompiler, IDevicePropertyProvider)
-/// at construction time and passes them to engine factory functions.
+/// Creates DI dependencies (IKernelCompiler) at construction time
+/// and passes them to engine factory functions.
 class ExamplePluginContainer
 {
 public:
@@ -41,14 +40,13 @@ private:
         std::function<std::unique_ptr<hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
                                                                  ExamplePluginSettings,
                                                                  ExamplePluginContext>>(
-            const IKernelCompiler&, const IDevicePropertyProvider&)>
+            const IKernelCompiler&)>
             createEngine;
     };
 
     static const std::vector<EngineDefinition>& getEngineDefinitions();
 
     std::unique_ptr<IKernelCompiler> _kernelCompiler;
-    std::unique_ptr<IDevicePropertyProvider> _devicePropertyProvider;
 
     std::unique_ptr<hipdnn_plugin_sdk::EngineManager<ExamplePluginHandle,
                                                      ExamplePluginSettings,
