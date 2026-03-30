@@ -25,7 +25,6 @@ class ExamplePluginContainer;
 ///
 /// Inherits from HipdnnEnginePluginHandle for opaque pointer compatibility.
 /// Manages the HIP stream, plugin container, and detached FlatBuffers buffers.
-// NOLINTBEGIN
 struct ExamplePluginHandle : HipdnnEnginePluginHandle
 {
 public:
@@ -91,5 +90,3 @@ private:
     std::unordered_map<const void*, std::unique_ptr<flatbuffers::DetachedBuffer>>
         _engineDetailsBuffers;
 };
-
-// NOLINTEND
