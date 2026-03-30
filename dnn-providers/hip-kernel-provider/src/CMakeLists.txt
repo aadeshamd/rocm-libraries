@@ -17,6 +17,7 @@ add_library(
     engines/plans/BatchnormFwdInferenceWithVariancePlan.cpp
     engines/plans/BatchnormFwdTrainingPlan.cpp
     engines/plans/BatchnormApplicabilityChecks.cpp
+    engines/plans/BatchnormFwdTrainingPlanBuilder.cpp
 )
 target_include_directories(hip_kernel_provider_impl PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
