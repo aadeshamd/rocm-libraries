@@ -40,8 +40,7 @@ TYPED_TEST(CpuFpReferenceBlockScaleDequantizeTyped, IdentityScale)
     xTensor.fillWithValue(static_cast<XType>(3.0f));
     scaleTensor.fillWithValue(static_cast<ScaleType>(1.0f));
 
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        xTensor, scaleTensor, yTensor, {2}, false);
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
 
     auto tolerance = 1e-5f;
     for(int b = 0; b < 2; ++b)
@@ -68,8 +67,7 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, NonTrivialScale)
     scaleTensor.setHostValue(2.0f, 0, 0); // scales elements [0,1]
     scaleTensor.setHostValue(0.5f, 0, 1); // scales elements [2,3]
 
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        xTensor, scaleTensor, yTensor, {2}, false);
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
 
     auto tolerance = 1e-5f;
     EXPECT_NEAR(yTensor.getHostValue(0, 0), 1.0f * 2.0f, tolerance);
@@ -88,8 +86,7 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, MultiDimBlocking)
     xTensor.fillWithValue(1.0f);
     scaleTensor.fillWithValue(3.0f);
 
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        xTensor, scaleTensor, yTensor, {32}, false);
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {32}, false);
 
     auto tolerance = 1e-5f;
     // Spot check a few values
@@ -112,8 +109,7 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, IsNegativeScaleFloat)
     scaleTensor.setHostValue(3.0f, 0, 0); // 2^(-3) = 0.125
     scaleTensor.setHostValue(1.0f, 0, 1); // 2^(-1) = 0.5
 
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        xTensor, scaleTensor, yTensor, {2}, true);
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, true);
 
     auto tolerance = 1e-5f;
     EXPECT_NEAR(yTensor.getHostValue(0, 0), 8.0f * 0.125f, tolerance);
@@ -133,8 +129,7 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp32, NormalScaleMultiplication)
     xTensor.setHostValue(10.0f, 0, 1);
     scaleTensor.setHostValue(0.1f, 0, 0);
 
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        xTensor, scaleTensor, yTensor, {2}, false);
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
 
     auto tolerance = 1e-5f;
     EXPECT_NEAR(yTensor.getHostValue(0, 0), 0.5f, tolerance);
@@ -159,12 +154,272 @@ TEST(TestCpuFpReferenceBlockScaleDequantizeFp8, E8M0ScaleDequantize)
     scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0);
     scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 1);
 
-    CpuFpReferenceBlockScaleDequantize::dequantize(
-        xTensor, scaleTensor, yTensor, {2}, false);
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
 
     auto tolerance = 1e-5f;
     EXPECT_NEAR(yTensor.getHostValue(0, 0), 3.0f * 1.0f, tolerance);
     EXPECT_NEAR(yTensor.getHostValue(0, 1), 3.0f * 1.0f, tolerance);
     EXPECT_NEAR(yTensor.getHostValue(0, 2), 5.0f * 2.0f, tolerance);
     EXPECT_NEAR(yTensor.getHostValue(0, 3), 5.0f * 2.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp8, E4M3WithE8M0Scale_FloatOutput)
+{
+    // MX dequantize: fp8_e4m3 input, fp8_e8m0 scale, float output
+    // scale[0] = 1.0 (bits=127), scale[1] = 2.0 (bits=128)
+    // x: {1, 1, 2, 2}, expected y: {1, 1, 4, 4}
+    Tensor<fp8_e4m3> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<float> yTensor({1, 4});
+
+    xTensor.setHostValue(fp8_e4m3(1.0f), 0, 0);
+    xTensor.setHostValue(fp8_e4m3(1.0f), 0, 1);
+    xTensor.setHostValue(fp8_e4m3(2.0f), 0, 2);
+    xTensor.setHostValue(fp8_e4m3(2.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 1); // 2.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(yTensor.getHostValue(0, 0), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 1), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 2), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 3), 2.0f * 2.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp8, E5M2WithE8M0Scale_FloatOutput)
+{
+    // MX dequantize: fp8_e5m2 input, fp8_e8m0 scale, float output
+    // scale[0] = 1.0 (bits=127), scale[1] = 2.0 (bits=128)
+    // x: {1, 1, 2, 2}, expected y: {1, 1, 4, 4}
+    Tensor<fp8_e5m2> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<float> yTensor({1, 4});
+
+    xTensor.setHostValue(fp8_e5m2(1.0f), 0, 0);
+    xTensor.setHostValue(fp8_e5m2(1.0f), 0, 1);
+    xTensor.setHostValue(fp8_e5m2(2.0f), 0, 2);
+    xTensor.setHostValue(fp8_e5m2(2.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 1); // 2.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(yTensor.getHostValue(0, 0), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 1), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 2), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 3), 2.0f * 2.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp8, E4M3WithE8M0Scale_HalfOutput)
+{
+    // MX dequantize: fp8_e4m3 input, fp8_e8m0 scale, half output
+    // scale[0] = 1.0 (bits=127), scale[1] = 2.0 (bits=128)
+    // x: {1, 1, 2, 2}, expected y: {1, 1, 4, 4}
+    Tensor<fp8_e4m3> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<half> yTensor({1, 4});
+
+    xTensor.setHostValue(fp8_e4m3(1.0f), 0, 0);
+    xTensor.setHostValue(fp8_e4m3(1.0f), 0, 1);
+    xTensor.setHostValue(fp8_e4m3(2.0f), 0, 2);
+    xTensor.setHostValue(fp8_e4m3(2.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 1); // 2.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 0)), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 1)), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 2)), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 3)), 2.0f * 2.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp8, E5M2WithE8M0Scale_HalfOutput)
+{
+    // MX dequantize: fp8_e5m2 input, fp8_e8m0 scale, half output
+    // scale[0] = 1.0 (bits=127), scale[1] = 2.0 (bits=128)
+    // x: {1, 1, 2, 2}, expected y: {1, 1, 4, 4}
+    Tensor<fp8_e5m2> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<half> yTensor({1, 4});
+
+    xTensor.setHostValue(fp8_e5m2(1.0f), 0, 0);
+    xTensor.setHostValue(fp8_e5m2(1.0f), 0, 1);
+    xTensor.setHostValue(fp8_e5m2(2.0f), 0, 2);
+    xTensor.setHostValue(fp8_e5m2(2.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 1); // 2.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 0)), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 1)), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 2)), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 3)), 2.0f * 2.0f, tolerance);
+}
+
+// ============================================================================
+// FP4 E2M1 MX dequantize tests
+// ============================================================================
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp4, E2M1WithE8M0Scale_FloatOutput)
+{
+    // MX dequantize: fp4_e2m1 input, fp8_e8m0 scale, float output
+    // fp4_e2m1 representable values: 0, 0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 6.0
+    // scale[0] = 1.0 (bits=127), scale[1] = 4.0 (bits=129)
+    Tensor<fp4_e2m1> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<float> yTensor({1, 4});
+
+    xTensor.setHostValue(fp4_e2m1(1.0f), 0, 0);
+    xTensor.setHostValue(fp4_e2m1(1.5f), 0, 1);
+    xTensor.setHostValue(fp4_e2m1(2.0f), 0, 2);
+    xTensor.setHostValue(fp4_e2m1(3.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 2^0 = 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(129), 0, 1); // 2^2 = 4.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(yTensor.getHostValue(0, 0), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 1), 1.5f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 2), 2.0f * 4.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 3), 3.0f * 4.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp4, E2M1WithE8M0Scale_HalfOutput)
+{
+    Tensor<fp4_e2m1> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<half> yTensor({1, 4});
+
+    xTensor.setHostValue(fp4_e2m1(0.5f), 0, 0);
+    xTensor.setHostValue(fp4_e2m1(1.0f), 0, 1);
+    xTensor.setHostValue(fp4_e2m1(4.0f), 0, 2);
+    xTensor.setHostValue(fp4_e2m1(6.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 0); // 2^1 = 2.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 1); // 2^0 = 1.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 0)), 0.5f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 1)), 1.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 2)), 4.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 3)), 6.0f * 1.0f, tolerance);
+}
+
+// ============================================================================
+// FP6 E2M3 MX dequantize tests
+// ============================================================================
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp6, E2M3WithE8M0Scale_FloatOutput)
+{
+    // MX dequantize: fp6_e2m3 input, fp8_e8m0 scale, float output
+    // fp6_e2m3 representable values include: 0, 0.125, ..., 1.0, 1.125, ..., 7.5
+    Tensor<fp6_e2m3> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<float> yTensor({1, 4});
+
+    xTensor.setHostValue(fp6_e2m3(1.0f), 0, 0);
+    xTensor.setHostValue(fp6_e2m3(1.5f), 0, 1);
+    xTensor.setHostValue(fp6_e2m3(2.0f), 0, 2);
+    xTensor.setHostValue(fp6_e2m3(3.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 1); // 2.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(yTensor.getHostValue(0, 0), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 1), 1.5f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 2), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 3), 3.0f * 2.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp6, E2M3WithE8M0Scale_HalfOutput)
+{
+    Tensor<fp6_e2m3> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<half> yTensor({1, 4});
+
+    xTensor.setHostValue(fp6_e2m3(1.0f), 0, 0);
+    xTensor.setHostValue(fp6_e2m3(2.0f), 0, 1);
+    xTensor.setHostValue(fp6_e2m3(4.0f), 0, 2);
+    xTensor.setHostValue(fp6_e2m3(7.5f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 0); // 2.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 1); // 1.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-2f;
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 0)), 1.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 1)), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 2)), 4.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 3)), 7.5f * 1.0f, tolerance);
+}
+
+// ============================================================================
+// FP6 E3M2 MX dequantize tests
+// ============================================================================
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp6, E3M2WithE8M0Scale_FloatOutput)
+{
+    // MX dequantize: fp6_e3m2 input, fp8_e8m0 scale, float output
+    // fp6_e3m2 representable values include: 0, 0.25, 0.5, 0.75, 1.0, 1.25, ..., 28.0
+    Tensor<fp6_e3m2> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<float> yTensor({1, 4});
+
+    xTensor.setHostValue(fp6_e3m2(1.0f), 0, 0);
+    xTensor.setHostValue(fp6_e3m2(1.5f), 0, 1);
+    xTensor.setHostValue(fp6_e3m2(2.0f), 0, 2);
+    xTensor.setHostValue(fp6_e3m2(4.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 0); // 1.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(129), 0, 1); // 4.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-1f;
+    EXPECT_NEAR(yTensor.getHostValue(0, 0), 1.0f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 1), 1.5f * 1.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 2), 2.0f * 4.0f, tolerance);
+    EXPECT_NEAR(yTensor.getHostValue(0, 3), 4.0f * 4.0f, tolerance);
+}
+
+TEST(TestCpuFpReferenceBlockScaleDequantizeFp6, E3M2WithE8M0Scale_HalfOutput)
+{
+    Tensor<fp6_e3m2> xTensor({1, 4});
+    Tensor<fp8_e8m0> scaleTensor({1, 2});
+    Tensor<half> yTensor({1, 4});
+
+    xTensor.setHostValue(fp6_e3m2(1.0f), 0, 0);
+    xTensor.setHostValue(fp6_e3m2(2.0f), 0, 1);
+    xTensor.setHostValue(fp6_e3m2(4.0f), 0, 2);
+    xTensor.setHostValue(fp6_e3m2(8.0f), 0, 3);
+
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(128), 0, 0); // 2.0
+    scaleTensor.setHostValue(fp8_e8m0::from_bits(127), 0, 1); // 1.0
+
+    CpuFpReferenceBlockScaleDequantize::dequantize(xTensor, scaleTensor, yTensor, {2}, false);
+
+    auto tolerance = 1e-1f;
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 0)), 1.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 1)), 2.0f * 2.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 2)), 4.0f * 1.0f, tolerance);
+    EXPECT_NEAR(static_cast<float>(yTensor.getHostValue(0, 3)), 8.0f * 1.0f, tolerance);
 }

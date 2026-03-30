@@ -9,6 +9,9 @@
 namespace hipdnn_test_sdk::utilities
 {
 using hipdnn_data_sdk::types::bfloat16;
+using hipdnn_data_sdk::types::fp4_e2m1;
+using hipdnn_data_sdk::types::fp6_e2m3;
+using hipdnn_data_sdk::types::fp6_e3m2;
 using hipdnn_data_sdk::types::fp8_e4m3;
 using hipdnn_data_sdk::types::fp8_e5m2;
 using hipdnn_data_sdk::types::fp8_e8m0;
@@ -55,6 +58,18 @@ constexpr auto datatypeToNative()
     {
         return fp8_e8m0{};
     }
+    else if constexpr(DT == DataType::FP4_E2M1)
+    {
+        return fp4_e2m1{};
+    }
+    else if constexpr(DT == DataType::FP6_E2M3)
+    {
+        return fp6_e2m3{};
+    }
+    else if constexpr(DT == DataType::FP6_E3M2)
+    {
+        return fp6_e3m2{};
+    }
     else
     {
         // NOLINTNEXTLINE(misc-redundant-expression) Intentional: DT != DT is a dependent false for constexpr-if
@@ -62,7 +77,17 @@ constexpr auto datatypeToNative()
     }
 }
 
-inline std::variant<float, half, double, int32_t, bfloat16, fp8_e4m3, fp8_e5m2, fp8_e8m0>
+inline std::variant<float,
+                    half,
+                    double,
+                    int32_t,
+                    bfloat16,
+                    fp8_e4m3,
+                    fp8_e5m2,
+                    fp8_e8m0,
+                    fp4_e2m1,
+                    fp6_e2m3,
+                    fp6_e3m2>
     datatypeToNativeVariant(hipdnn_data_sdk::data_objects::DataType type)
 {
     using DataType = hipdnn_data_sdk::data_objects::DataType;
@@ -92,6 +117,15 @@ inline std::variant<float, half, double, int32_t, bfloat16, fp8_e4m3, fp8_e5m2, 
         break;
     case DataType::FP8_E8M0:
         return fp8_e8m0{};
+        break;
+    case DataType::FP4_E2M1:
+        return fp4_e2m1{};
+        break;
+    case DataType::FP6_E2M3:
+        return fp6_e2m3{};
+        break;
+    case DataType::FP6_E3M2:
+        return fp6_e3m2{};
         break;
     default:
         throw std::runtime_error("Error: Invalid type");
@@ -132,6 +166,18 @@ constexpr hipdnn_data_sdk::data_objects::DataType nativeTypeToDataType()
     else if constexpr(std::is_same_v<T, fp8_e8m0>)
     {
         return hipdnn_data_sdk::data_objects::DataType::FP8_E8M0;
+    }
+    else if constexpr(std::is_same_v<T, fp4_e2m1>)
+    {
+        return hipdnn_data_sdk::data_objects::DataType::FP4_E2M1;
+    }
+    else if constexpr(std::is_same_v<T, fp6_e2m3>)
+    {
+        return hipdnn_data_sdk::data_objects::DataType::FP6_E2M3;
+    }
+    else if constexpr(std::is_same_v<T, fp6_e3m2>)
+    {
+        return hipdnn_data_sdk::data_objects::DataType::FP6_E3M2;
     }
     else
     {

@@ -712,6 +712,12 @@ inline std::unique_ptr<utilities::ITensor> createTensor(data_objects::DataType d
         return std::make_unique<Tensor<types::fp8_e5m2>>(dims, strides);
     case data_objects::DataType::FP8_E8M0:
         return std::make_unique<Tensor<types::fp8_e8m0>>(dims, strides);
+    case data_objects::DataType::FP4_E2M1:
+        return std::make_unique<Tensor<types::fp4_e2m1>>(dims, strides);
+    case data_objects::DataType::FP6_E2M3:
+        return std::make_unique<Tensor<types::fp6_e2m3>>(dims, strides);
+    case data_objects::DataType::FP6_E3M2:
+        return std::make_unique<Tensor<types::fp6_e3m2>>(dims, strides);
     default:
         throw std::runtime_error("Unsupported data type for tensor");
     }

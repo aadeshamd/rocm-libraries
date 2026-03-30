@@ -147,6 +147,42 @@ struct BlockScaleDequantizeSignatureKey
                        hipdnn_data_sdk::data_objects::DataType::HALF,
                        hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
 
+        // FP4 E2M1 input with E8M0 scale, float output/compute (MX dequantize)
+        addPlanBuilder<hipdnn_data_sdk::data_objects::DataType::FP4_E2M1,
+                       hipdnn_data_sdk::data_objects::DataType::FP8_E8M0,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
+
+        // FP4 E2M1 input with E8M0 scale, half output, float compute
+        addPlanBuilder<hipdnn_data_sdk::data_objects::DataType::FP4_E2M1,
+                       hipdnn_data_sdk::data_objects::DataType::FP8_E8M0,
+                       hipdnn_data_sdk::data_objects::DataType::HALF,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
+
+        // FP6 E2M3 input with E8M0 scale, float output/compute (MX dequantize)
+        addPlanBuilder<hipdnn_data_sdk::data_objects::DataType::FP6_E2M3,
+                       hipdnn_data_sdk::data_objects::DataType::FP8_E8M0,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
+
+        // FP6 E2M3 input with E8M0 scale, half output, float compute
+        addPlanBuilder<hipdnn_data_sdk::data_objects::DataType::FP6_E2M3,
+                       hipdnn_data_sdk::data_objects::DataType::FP8_E8M0,
+                       hipdnn_data_sdk::data_objects::DataType::HALF,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
+
+        // FP6 E3M2 input with E8M0 scale, float output/compute (MX dequantize)
+        addPlanBuilder<hipdnn_data_sdk::data_objects::DataType::FP6_E3M2,
+                       hipdnn_data_sdk::data_objects::DataType::FP8_E8M0,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
+
+        // FP6 E3M2 input with E8M0 scale, half output, float compute
+        addPlanBuilder<hipdnn_data_sdk::data_objects::DataType::FP6_E3M2,
+                       hipdnn_data_sdk::data_objects::DataType::FP8_E8M0,
+                       hipdnn_data_sdk::data_objects::DataType::HALF,
+                       hipdnn_data_sdk::data_objects::DataType::FLOAT>(map);
+
         return map;
     }
 

@@ -2120,6 +2120,57 @@ inline flatbuffers::FlatBufferBuilder
 }
 
 inline flatbuffers::FlatBufferBuilder
+    createValidBlockScaleDequantizeMxGraph(hipdnn_data_sdk::data_objects::DataType inputDataType,
+                                           hipdnn_data_sdk::data_objects::DataType scaleDataType,
+                                           hipdnn_data_sdk::data_objects::DataType outputDataType,
+                                           hipdnn_data_sdk::data_objects::DataType computeDataType
+                                           = hipdnn_data_sdk::data_objects::DataType::FLOAT)
+{
+    flatbuffers::FlatBufferBuilder builder;
+    std::vector<::flatbuffers::Offset<hipdnn_data_sdk::data_objects::TensorAttributes>>
+        tensorAttributes;
+
+    const std::vector<int64_t> dims = {1, 4};
+    const std::vector<int64_t> strides = {4, 1};
+    const std::vector<int64_t> scaleDims = {1, 2};
+    const std::vector<int64_t> scaleStrides = {2, 1};
+
+    tensorAttributes.push_back(hipdnn_data_sdk::data_objects::CreateTensorAttributesDirect(
+        builder, 1, "x", inputDataType, &strides, &dims));
+    tensorAttributes.push_back(hipdnn_data_sdk::data_objects::CreateTensorAttributesDirect(
+        builder, 2, "scale", scaleDataType, &scaleStrides, &scaleDims));
+    tensorAttributes.push_back(hipdnn_data_sdk::data_objects::CreateTensorAttributesDirect(
+        builder, 3, "y", outputDataType, &strides, &dims));
+
+    const std::vector<int32_t> blockSize = {2};
+    auto blockSizeVector = builder.CreateVector(blockSize);
+
+    auto blockScaleDequantizeAttributes
+        = hipdnn_data_sdk::data_objects::CreateBlockScaleDequantizeAttributes(
+            builder, 1, 2, 3, blockSizeVector, false);
+
+    std::vector<::flatbuffers::Offset<hipdnn_data_sdk::data_objects::Node>> nodes;
+    auto node = hipdnn_data_sdk::data_objects::CreateNodeDirect(
+        builder,
+        "block_scale_dequantize",
+        computeDataType,
+        hipdnn_data_sdk::data_objects::NodeAttributes::BlockScaleDequantizeAttributes,
+        blockScaleDequantizeAttributes.Union());
+    nodes.push_back(node);
+
+    auto graphOffset = hipdnn_data_sdk::data_objects::CreateGraphDirect(
+        builder,
+        "test",
+        hipdnn_data_sdk::data_objects::DataType::FLOAT,
+        hipdnn_data_sdk::data_objects::DataType::HALF,
+        hipdnn_data_sdk::data_objects::DataType::BFLOAT16,
+        &tensorAttributes,
+        &nodes);
+    builder.Finish(graphOffset);
+    return builder;
+}
+
+inline flatbuffers::FlatBufferBuilder
     createValidSdpaBpropGraph(const std::vector<int64_t>& qDims = {2, 8, 16, 64},
                               const std::vector<int64_t>& qStrides = {8192, 1024, 64, 1},
                               const std::vector<int64_t>& kDims = {2, 8, 16, 64},
