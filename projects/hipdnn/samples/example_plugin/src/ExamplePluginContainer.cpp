@@ -29,19 +29,13 @@ const std::vector<ExamplePluginContainer::EngineDefinition>&
 {
     static const std::vector<EngineDefinition> s_engineDefinitions = {
         {EXAMPLE_PLUGIN_RELU_ENGINE_ID,
-         [](const IKernelCompiler& compiler)
-             -> std::unique_ptr<hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
-                                                           ExamplePluginSettings,
-                                                           ExamplePluginContext>> {
+         [](const IKernelCompiler& compiler) -> ExamplePluginEnginePtr {
              auto engine = std::make_unique<ExamplePluginEngine>(EXAMPLE_PLUGIN_RELU_ENGINE_ID);
              engine->addPlanBuilder(std::make_unique<ReluPlanBuilder>(compiler));
              return engine;
          }},
         {EXAMPLE_PLUGIN_CONV_FWD_ENGINE_ID,
-         [](const IKernelCompiler& compiler)
-             -> std::unique_ptr<hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
-                                                           ExamplePluginSettings,
-                                                           ExamplePluginContext>> {
+         [](const IKernelCompiler& compiler) -> ExamplePluginEnginePtr {
              auto engine = std::make_unique<ExamplePluginEngine>(EXAMPLE_PLUGIN_CONV_FWD_ENGINE_ID);
              engine->addPlanBuilder(std::make_unique<ConvFwdPlanBuilder>(compiler));
              return engine;

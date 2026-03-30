@@ -50,6 +50,15 @@ public:
         EngineManager<ExamplePluginHandle, ExamplePluginSettings, ExamplePluginContext>&
         getEngineManager();
 
+    // When requested by the user, engine details are serialized as a
+    // FlatBuffer (ExamplePluginEngine::getDetails()) and a pointer to the heap
+    // memory for the completed FlatBuffer is returned to the backend. The
+    // Flatbuffer memory needs to remain allocated until the user releases the
+    // engine details, at which point the FlatBuffer object can be destroyed.
+    //
+    // The storeEngineDetailsDetachedBuffer() and removeEngineDetailsDetachedBuffer()
+    // functions below are provided to assist with managing the lifetime of these
+    // FlatBuffer engine detail objects. These fuctions can be copied/used as-is.
     void storeEngineDetailsDetachedBuffer(const void* ptr,
                                           std::unique_ptr<flatbuffers::DetachedBuffer> buffer)
     {

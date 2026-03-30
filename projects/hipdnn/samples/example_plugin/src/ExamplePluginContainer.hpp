@@ -13,6 +13,10 @@
 namespace example_plugin
 {
 
+/// Type alias for engine pointers used in engine registration.
+using ExamplePluginEnginePtr = std::unique_ptr<
+    hipdnn_plugin_sdk::IEngine<ExamplePluginHandle, ExamplePluginSettings, ExamplePluginContext>>;
+
 /// Container class that manages engine instantiation and ownership.
 ///
 /// Creates DI dependencies (IKernelCompiler) at construction time
@@ -37,11 +41,7 @@ private:
     struct EngineDefinition
     {
         int64_t id;
-        std::function<std::unique_ptr<hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
-                                                                 ExamplePluginSettings,
-                                                                 ExamplePluginContext>>(
-            const IKernelCompiler&)>
-            createEngine;
+        std::function<ExamplePluginEnginePtr(const IKernelCompiler&)> createEngine;
     };
 
     static const std::vector<EngineDefinition>& getEngineDefinitions();
