@@ -5,8 +5,8 @@
 #include "CurrentDevicePropertyProvider.hpp"
 #include "engines/HipKernelEngine.hpp"
 #include "engines/plans/BatchnormPlanBuilder.hpp"
-#include "engines/plans/RMSnorm/RMSnormPlanBuilder.hpp"
 #include "engines/plans/RMSnorm/RMSnormBwdPlanBuilder.hpp"
+#include "engines/plans/RMSnorm/RMSnormPlanBuilder.hpp"
 #include "hip/HipKernelCompiler.hpp"
 
 #include <hipdnn_data_sdk/logging/Logger.hpp>
