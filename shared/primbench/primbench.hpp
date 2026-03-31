@@ -20,7 +20,7 @@
 
 #pragma once
 
-#if defined(__HIP__)
+#ifdef __HIP__
     #include <amd_smi/amdsmi.h>
     #include <hip/hip_runtime.h>
 #elif defined(__CUDACC__)
@@ -93,7 +93,7 @@
             }                                                                                     \
         }                                                                                         \
         while(0)
-#else
+#elif defined(__CUDACC__)
     /// Exits the program with an error message if the given API call returns a failure status.
     #define PRIMBENCH_CHECK(status)                                                  \
         do                                                                           \
@@ -128,7 +128,7 @@ namespace primbench
 #ifdef __HIP__
 using stream_t                    = hipStream_t;
 constexpr stream_t default_stream = hipStreamDefault;
-#else
+#elif defined(__CUDACC__)
 using stream_t                    = cudaStream_t;
 constexpr stream_t default_stream = cudaStreamDefault;
 #endif
@@ -261,7 +261,7 @@ namespace gpu_backend
 using error_t                           = hipError_t;
 using event_t                           = hipEvent_t;
 constexpr unsigned host_register_mapped = hipHostRegisterMapped;
-#else
+#elif defined(__CUDACC__)
 using error_t                           = cudaError_t;
 using event_t                           = cudaEvent_t;
 constexpr unsigned host_register_mapped = cudaHostRegisterMapped;
@@ -269,7 +269,7 @@ constexpr unsigned host_register_mapped = cudaHostRegisterMapped;
 
 #ifdef __HIP__
     #define PRIMBENCH_PREFIX_BACKEND(fn) hip##fn
-#else
+#elif defined(__CUDACC__)
     #define PRIMBENCH_PREFIX_BACKEND(fn) cuda##fn
 #endif
 
@@ -553,7 +553,7 @@ private:
 
 }; // class monitor
 
-#else // __HIP__
+#elif defined(__CUDACC__)
 
 /// Wrapper for CUDA and NVML (NVIDIA Management Library) GPU monitoring.
 class monitor
@@ -662,7 +662,7 @@ private:
     nvmlDevice_t m_nvml_device; ///< NVML device.
 }; // class monitor
 
-#endif // __HIP__
+#endif
 
 /// Namespace for flag definitions and utilities.
 namespace flags
@@ -1650,6 +1650,7 @@ inline void print_progress(uint64_t         iteration,
 } // namespace progress
 
 #ifdef __HIP__
+
 /// Kernel that blocks the GPU stream until unblocked or timeout occurs.
 __global__
 void block_stream_kernel(volatile int32_t* is_blocked,
@@ -1670,7 +1671,9 @@ void block_stream_kernel(volatile int32_t* is_blocked,
         }
     }
 }
-#else
+
+#elif defined(__CUDACC__)
+
 /// Kernel that blocks the GPU stream until unblocked or timeout occurs.
 __global__
 void block_stream_kernel(volatile int32_t* is_blocked,
@@ -1691,6 +1694,7 @@ void block_stream_kernel(volatile int32_t* is_blocked,
         }
     }
 }
+
 #endif
 
 /// Manages synchronization between host and GPU streams
@@ -1756,7 +1760,7 @@ public:
                                                                m_device_timeout_flag,
                                                                m_stream_blocking_timeout_secs,
                                                                m_wall_clock_rate);
-#else
+#elif defined(__CUDACC__)
         block_stream_kernel<<<dim3(1), dim3(1), 0, m_stream>>>(m_device_flag,
                                                                m_device_timeout_flag,
                                                                m_stream_blocking_timeout_secs);
