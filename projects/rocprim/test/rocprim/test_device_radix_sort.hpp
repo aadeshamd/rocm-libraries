@@ -46,6 +46,7 @@
 #include "test_utils_hipgraphs.hpp"
 #include "test_utils_sort_checker.hpp"
 #include "test_utils_sort_comparator.hpp"
+#include "../test_control/test_control.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -1181,6 +1182,9 @@ void sort_keys_over_4g()
     constexpr size_t       size                    = (1ull << 32) + 32;
     constexpr size_t       number_of_possible_keys = 1ull << (8ull * sizeof(key_type));
     hipStream_t            stream                  = 0;
+
+	TestControl control(false);
+	
     if(UseGraphs)
     {
         // Default stream does not support hipGraph stream capture, so create one
@@ -1188,13 +1192,17 @@ void sort_keys_over_4g()
     }
 
     assert(std::is_unsigned<key_type>::value);
+	
+	LOG_HOST_USAGE(control, sizeof(size_t) * number_of_possible_keys);
     std::vector<size_t> histogram(number_of_possible_keys, 0);
+	
     const int           seed_value = rand();
 
     const int device_id = test_common_utils::obtain_device_from_ctest();
     SCOPED_TRACE(testing::Message() << "with device_id = " << device_id);
     HIP_CHECK(hipSetDevice(device_id));
 
+	LOG_HOST_USAGE(control, sizeof(key_type) * size);
     std::vector<key_type> keys_input
         = test_utils::get_random_data_wrapped<key_type>(size,
                                                         rocprim::numeric_limits<key_type>::min(),
@@ -1204,8 +1212,8 @@ void sort_keys_over_4g()
     //generate histogram of the randomly generated values
     std::for_each(keys_input.begin(), keys_input.end(), [&](const key_type& a) { histogram[a]++; });
 
+	LOG_DEV_USAGE(control, sizeof(key_type) * keys_input.size());
     common::device_ptr<key_type> d_keys_input_output(keys_input);
-    size_t                       key_type_storage_bytes = size * sizeof(key_type);
 
     size_t temporary_storage_bytes;
     HIP_CHECK(rocprim::radix_sort_keys(nullptr,
@@ -1220,17 +1228,7 @@ void sort_keys_over_4g()
 
     ASSERT_GT(temporary_storage_bytes, 0);
 
-    hipDeviceProp_t prop;
-    HIP_CHECK(hipGetDeviceProperties(&prop, device_id));
-
-    size_t total_storage_bytes = key_type_storage_bytes + temporary_storage_bytes;
-    if(total_storage_bytes > (static_cast<size_t>(prop.totalGlobalMem * 0.90)))
-    {
-        GTEST_SKIP() << "Test case device memory requirement (" << total_storage_bytes
-                     << " bytes) exceeds available memory on current device ("
-                     << prop.totalGlobalMem << " bytes). Skipping test";
-    }
-
+	LOG_DEV_USAGE(control, temporary_storage_bytes);
     common::device_ptr<void> d_temporary_storage(temporary_storage_bytes);
 
     test_utils::GraphHelper gHelper;
@@ -1254,6 +1252,7 @@ void sort_keys_over_4g()
         gHelper.createAndLaunchGraph(stream);
     }
 
+	LOG_HOST_USAGE(control, sizeof(key_type) * size);
     const auto output = d_keys_input_output.load();
 
     size_t counter = 0;
