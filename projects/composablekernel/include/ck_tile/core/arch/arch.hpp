@@ -26,6 +26,8 @@
 #define CK_TILE_CONCEPTS 0
 #endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
+// Mark functions as STATIC_EVAL to enable compile-time evaluation when possible, while ensuring
+// compatibility if consteval is not supported
 #if defined(__cpp_consteval) && __cpp_consteval >= 201811L
 #define STATIC_EVAL consteval
 #else
