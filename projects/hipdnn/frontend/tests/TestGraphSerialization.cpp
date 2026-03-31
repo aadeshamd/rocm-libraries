@@ -122,6 +122,16 @@ void expectGraphsEqual(Graph& expected, Graph& actual)
 class TestGraphSerializationRoundTrip : public ::testing::TestWithParam<SerializationFormat>
 {
 protected:
+    void SetUp() override
+    {
+        auto format = GetParam();
+        if(format == SerializationFormat::BINARY
+           || format == SerializationFormat::FLATBUFFER_DETACHED)
+        {
+            SKIP_IF_DESCRIPTOR_API();
+        }
+    }
+
     // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
     void roundTripAndCompare(Graph& graph)
     {
@@ -514,6 +524,8 @@ TEST_P(TestGraphSerializationRoundTrip, BnInfDReluBnBwdFusion)
 
 TEST(TestGraphSerialization, BinarySerializationRoundTrip)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("binary_roundtrip_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -548,6 +560,8 @@ TEST(TestGraphSerialization, BinarySerializationRoundTrip)
 
 TEST(TestGraphSerialization, BinaryVsJsonConsistency)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("binary_json_consistency_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -587,6 +601,8 @@ TEST(TestGraphSerialization, BinaryVsJsonConsistency)
 
 TEST(TestGraphSerialization, ToFlatBufferReturnsValidBuffer)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("flatbuffer_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -708,6 +724,8 @@ TEST(TestGraphSerialization, BinaryUsesPackedFlatBuffer)
 
 TEST(TestGraphSerialization, SerializeOverloadReturnsDetachedBuffer)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("serialize_overload_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -764,6 +782,8 @@ TEST(TestGraphSerialization, DeserializeFromFlatBufferGraphObject)
 
 TEST(TestGraphSerialization, DeserializeFromDetachedBuffer)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("deserialize_detached_buffer_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -791,6 +811,8 @@ TEST(TestGraphSerialization, DeserializeFromDetachedBuffer)
 
 TEST(TestGraphSerialization, FromFlatBufferDetachedBufferOverload)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("from_flatbuffer_detached_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -818,6 +840,8 @@ TEST(TestGraphSerialization, FromFlatBufferDetachedBufferOverload)
 
 TEST(TestGraphSerialization, ConstSerializeReturnsErrorWithoutUids)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("const_serialize_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -857,6 +881,8 @@ TEST(TestGraphSerialization, ConstSerializeReturnsErrorWithoutUids)
 
 TEST(TestGraphSerialization, NonConstSerializeAssignsUids)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("nonconst_serialize_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -949,6 +975,8 @@ TEST(TestGraphSerialization, ConstJsonSerializeReturnsErrorWithoutUids)
 
 TEST(TestGraphSerialization, ConstBinarySerializeReturnsErrorWithoutUids)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("const_binary_test");
     graph.set_compute_data_type(DataType::FLOAT);
@@ -1013,6 +1041,8 @@ TEST(TestGraphSerialization, ConstJsonSerializeSucceedsWithUids)
 
 TEST(TestGraphSerialization, ConstFlatBufferSerializeSucceedsWithUids)
 {
+    // TODO(descriptor-api): serialization path not yet supported
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph;
     graph.set_name("const_flatbuffer_success_test");
 

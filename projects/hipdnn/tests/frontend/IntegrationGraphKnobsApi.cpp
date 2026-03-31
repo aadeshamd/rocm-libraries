@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <hipdnn_frontend.hpp>
 #include <hipdnn_test_sdk/utilities/LogRecorder.hpp>
+#include <hipdnn_test_sdk/utilities/TestUtilities.hpp>
 #include <test_plugins/TestPluginConstants.hpp>
 
 using namespace hipdnn_frontend;
@@ -105,6 +106,8 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(IntegrationGraphKnobsApi, QueryKnobsFromEngine)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     const auto& testCase = GetParam();
 
     const Graph graph = createAndBuildSimpleGraph();
@@ -186,6 +189,8 @@ TEST_P(IntegrationGraphKnobsApi, QueryKnobsFromEngine)
 
 TEST_P(IntegrationGraphKnobsApi, CreateExecutionPlanWithEmptyKnobs)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     const auto& testCase = GetParam();
 
     Graph graph = createAndBuildSimpleGraph();
@@ -200,6 +205,8 @@ TEST_P(IntegrationGraphKnobsApi, CreateExecutionPlanWithEmptyKnobs)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithValidKnobs)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph = createAndBuildSimpleGraph();
 
     const int64_t engineId = hipdnn_tests::plugin_constants::engineId<KnobsPlugin>();
@@ -214,6 +221,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithValidKnobs)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithValidBoundaryKnobs)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph = createAndBuildSimpleGraph();
 
     const int64_t engineId = hipdnn_tests::plugin_constants::engineId<KnobsPlugin>();
@@ -265,6 +274,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithValidBoundaryKnobs)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithOutOfRangeIntKnob)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph = createAndBuildSimpleGraph();
 
     // Try to set int knob with value outside range (min=0, max=100)
@@ -279,6 +290,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithOutOfRangeIntKnob)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithMisalignedIntKnobStep)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph = createAndBuildSimpleGraph();
 
     // test.int_knob has step=10, so valid values are 0, 10, 20, ..., 100
@@ -293,6 +306,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithMisalignedIntKnobStep)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithInvalidStringKnob)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     Graph graph = createAndBuildSimpleGraph();
 
     // Try to set string knob with invalid choice (valid: "fast", "accurate", "balanced")
@@ -307,6 +322,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithInvalidStringKnob)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithUnsupportedKnob)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     // Set up log recorder to capture warning about deprecated knob
     auto recorder
         = hipdnn_test_sdk::utilities::SharedLogRecorder::withOverrideLevel(HIPDNN_SEV_WARN);
@@ -332,6 +349,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithUnsupportedKnob)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithDeprecatedKnob)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     // Set up log recorder to capture warning about deprecated knob
     auto recorder
         = hipdnn_test_sdk::utilities::SharedLogRecorder::withOverrideLevel(HIPDNN_SEV_WARN);
@@ -356,6 +375,8 @@ TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithDeprecatedKnob)
 
 TEST_F(IntegrationGraphKnobsApi, CreateExecutionPlanWithSharedKnob)
 {
+    // TODO(descriptor-api): knobs API not yet supported with descriptor path
+    SKIP_IF_DESCRIPTOR_API();
     // Set up log recorder to verify no deprecation warning is emitted
     auto recorder
         = hipdnn_test_sdk::utilities::SharedLogRecorder::withOverrideLevel(HIPDNN_SEV_WARN);

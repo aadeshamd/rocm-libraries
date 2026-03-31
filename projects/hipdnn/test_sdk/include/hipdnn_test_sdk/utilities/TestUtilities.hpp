@@ -3,6 +3,9 @@
 
 #pragma once
 
+#include <cstdlib>
+#include <cstring>
+
 #if defined(_WIN32)
 #define SKIP_IF_WINDOWS()                               \
     do                                                  \
@@ -62,3 +65,13 @@
     {                  \
     } while(0)
 #endif
+
+#define SKIP_IF_DESCRIPTOR_API()                                                   \
+    do                                                                             \
+    {                                                                              \
+        const char* val = std::getenv("HIPDNN_USE_DESCRIPTOR_API");                \
+        if(val != nullptr && std::strcmp(val, "1") == 0)                           \
+        {                                                                          \
+            GTEST_SKIP() << "Skipped: not yet supported with descriptor API path"; \
+        }                                                                          \
+    } while(0)
