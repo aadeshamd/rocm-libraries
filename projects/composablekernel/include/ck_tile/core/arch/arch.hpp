@@ -26,7 +26,7 @@
 #define CK_TILE_CONCEPTS 0
 #endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
-#if __cplusplus >= 202002L
+#if defined(__cpp_consteval) && __cpp_consteval >= 201811L
 #define STATIC_EVAL consteval
 #else
 #define STATIC_EVAL constexpr
