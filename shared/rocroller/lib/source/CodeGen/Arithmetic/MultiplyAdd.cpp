@@ -3,6 +3,7 @@
 
 #include <rocRoller/CodeGen/Arithmetic/ArithmeticGenerator.hpp>
 #include <rocRoller/CodeGen/Arithmetic/MultiplyAdd.hpp>
+#include <rocRoller/CodeGen/CopyGenerator.hpp>
 #include <rocRoller/Utilities/Component.hpp>
 
 namespace rocRoller
@@ -29,6 +30,15 @@ namespace rocRoller
         AssertFatal(a);
         AssertFatal(x);
         AssertFatal(y);
+
+        if(a->regType() == Register::Type::Accumulator
+           || x->regType() == Register::Type::Accumulator
+           || y->regType() == Register::Type::Accumulator)
+        {
+            co_yield m_context->copier()->ensureType(a, a, Register::Type::Vector);
+            co_yield m_context->copier()->ensureType(x, x, Register::Type::Vector);
+            co_yield m_context->copier()->ensureType(y, y, Register::Type::Vector);
+        }
 
         auto dTypeA = a->variableType().dataType;
         auto dTypeX = x->variableType().dataType;
