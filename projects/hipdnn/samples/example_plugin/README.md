@@ -81,10 +81,7 @@ example_plugin/
 │   ├── TestReluPlan.cpp
 │   ├── TestConvFwdPlanBuilder.cpp
 │   └── TestConvFwdPlan.cpp
-├── integration_tests/                   # Integration tests (full hipDNN stack, GPU required)
-│   ├── CMakeLists.txt
-│   └── TestPluginIntegration.cpp
-└── sample/                              # Sample application (GPU required)
+└── sample/                              # Demo app + acceptance test
     ├── CMakeLists.txt
     └── ExamplePluginSample.cpp
 ```
@@ -105,20 +102,16 @@ Run the unit tests (no GPU required):
 ctest --test-dir build
 ```
 
-Run the integration tests (requires GPU):
+Run the sample application (requires GPU for full execution):
 
 ```bash
-cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_INTEGRATION_TESTS=ON
-cmake --build .
-ctest --test-dir build
+ctest --test-dir build -R example_plugin_sample
 ```
 
-Run the sample application (requires GPU):
+The sample can also be run directly:
 
 ```bash
-cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE=ON
-cmake --build .
-HIPDNN_PLUGIN_DIR=build/src ./build/sample/example_plugin_sample
+./build/bin/example_plugin_sample
 ```
 
 Install the plugin:
@@ -128,7 +121,7 @@ cmake --install build --prefix /opt/rocm
 # Plugin .so is installed to <prefix>/lib/hipdnn_plugins/engines/
 ```
 
-### Windows (MSVC) -- Untested
+### Windows (MSVC)
 
 ```powershell
 mkdir build
@@ -143,21 +136,14 @@ ctest --test-dir . --build-config Release
 | Option | Default | Description |
 |---|---|---|
 | `HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS` | `ON` | Build unit tests (no GPU required) |
-| `HIPDNN_EXAMPLE_PLUGIN_BUILD_INTEGRATION_TESTS` | `OFF` | Build integration tests (requires `hipdnn_frontend` + GPU) |
-| `HIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE` | `OFF` | Build sample application (requires `hipdnn_frontend` + GPU) |
+| `HIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE` | `ON` | Build sample application (serves as acceptance test via `ctest`) |
 | `ROCM_PATH` | `/opt/rocm` | ROCm installation path (for RPATH and library discovery) |
 
-To build everything:
+To build only the plugin library (no tests or sample):
 
 ```bash
-cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_INTEGRATION_TESTS=ON \
-         -DHIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE=ON
-```
-
-To build only the plugin library (no tests):
-
-```bash
-cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS=OFF
+cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS=OFF \
+         -DHIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE=OFF
 ```
 
 ## Architecture

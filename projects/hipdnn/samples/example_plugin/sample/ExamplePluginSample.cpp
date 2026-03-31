@@ -2,16 +2,19 @@
 // SPDX-License-Identifier: MIT
 
 // Sample application demonstrating how to load a hipDNN engine plugin and
-// execute graphs using the plugin's GPU engines.
+// execute graphs using the plugin's GPU engines. This program serves as both
+// a demonstration and an end-to-end acceptance test.
 //
-// This program shows five scenarios:
-//   1. Loading via HIPDNN_PLUGIN_DIR environment variable (ReLU on GPU)
-//   2. Loading with ADDITIVE mode (alongside system plugins)
-//   3. Loading with ABSOLUTE mode (only specified plugins)
-//   4. Selecting a specific engine by name (ReLU on GPU)
-//   5. Convolution forward on GPU
+// Three scenarios are demonstrated:
+//   1. ReLU forward with engine selection and knob modification (explicit 6-step
+//      build, leaky ReLU via negative_slope knob, verification)
+//   2. Convolution forward with engine selection (build() convenience, Tensor
+//      class for GPU memory management, verification with hardcoded values +
+//      CPU reference)
+//   3. Plugin loading modes (ADDITIVE, ABSOLUTE, presence verification)
 //
-// All operations execute on GPU device memory via HIPRTC-compiled kernels.
+// When no GPU is detected, only non-GPU portions run (plugin
+// loading, presence verification, graph construction).
 //
 // Plugin directory resolution:
 //   1. If a command-line argument is provided, that path is used.
@@ -19,29 +22,34 @@
 //   3. Otherwise, the directory containing this executable is used as a last resort.
 //
 // Prerequisites:
-//   - hipDNN installed at /opt/rocm
-//   - ROCm with HIPRTC and a compatible GPU
-//   - The example_plugin shared library built in the same CMake project
+//   - hipDNN installed
+//   - ROCm with HIPRTC and a compatible GPU (for GPU execution portions)
+//   - The example_plugin shared library (built in the same CMake project)
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
 
 #include <hip/hip_runtime.h>
 
 #include <hipdnn_data_sdk/utilities/PlatformUtils.hpp>
+#include <hipdnn_data_sdk/utilities/Tensor.hpp>
+#include <hipdnn_test_sdk/utilities/CpuFpReferenceConvolution.hpp>
 
 #include <hipdnn_frontend.hpp>
+#include <hipdnn_frontend/Utilities.hpp>
 
 using namespace hipdnn_frontend;
-using namespace hipdnn_frontend::graph;
 
 // ============================================================================
 // HIP error checking helper
@@ -56,28 +64,43 @@ static bool checkHip(hipError_t err, const char* msg)
     return true;
 }
 
+static std::string knobValueToString(const KnobValueVariant& value)
+{
+    if(std::holds_alternative<int64_t>(value))
+        return std::to_string(std::get<int64_t>(value));
+    if(std::holds_alternative<double>(value))
+    {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(2) << std::get<double>(value);
+        return oss.str();
+    }
+    if(std::holds_alternative<std::string>(value))
+        return "\"" + std::get<std::string>(value) + "\"";
+    return "(unknown)";
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
 
 // Build a pointwise ReLU forward graph with the given tensor dimensions.
-static std::shared_ptr<Graph> createReluGraph(const std::string& name,
-                                              const std::vector<int64_t>& dims)
+static std::shared_ptr<hipdnn_frontend::graph::Graph>
+    createReluGraph(const std::string& name, const std::vector<int64_t>& dims)
 {
-    auto graph = std::make_shared<Graph>();
+    auto graph = std::make_shared<hipdnn_frontend::graph::Graph>();
     graph->set_name(name)
         .set_io_data_type(DataType::FLOAT)
         .set_intermediate_data_type(DataType::FLOAT)
         .set_compute_data_type(DataType::FLOAT);
 
-    auto x = std::make_shared<TensorAttributes>();
+    auto x = std::make_shared<hipdnn_frontend::graph::TensorAttributes>();
     x->set_uid(1)
         .set_name("X")
         .set_dim(dims)
         .set_stride({dims[1] * dims[2] * dims[3], dims[2] * dims[3], dims[3], 1})
         .set_data_type(DataType::FLOAT);
 
-    PointwiseAttributes attrs;
+    hipdnn_frontend::graph::PointwiseAttributes attrs;
     attrs.set_name("relu_fwd");
     attrs.set_mode(PointwiseMode::RELU_FWD);
 
@@ -191,7 +214,7 @@ static void printMatrix(const std::string& label, const std::vector<float>& m, i
 static void printLoadedPlugins(hipdnnHandle_t handle)
 {
     std::vector<std::filesystem::path> paths;
-    auto err = hipdnn_frontend::getLoadedEnginePluginPaths(handle, paths);
+    auto err = getLoadedEnginePluginPaths(handle, paths);
     if(err.is_bad() || paths.empty())
     {
         std::cout << "  (no plugins loaded)\n";
@@ -204,70 +227,52 @@ static void printLoadedPlugins(hipdnnHandle_t handle)
     }
 }
 
-// ============================================================================
-// Scenario 1: Load via HIPDNN_PLUGIN_DIR environment variable
-// ============================================================================
-static bool scenario1_EnvVariable()
+// Check whether the example_plugin is present among loaded plugins.
+// Returns true if found, false otherwise.
+static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeLabel)
 {
-    std::cout << "\n=== Scenario 1: Load via HIPDNN_PLUGIN_DIR ===\n";
-    std::cout << "The HIPDNN_PLUGIN_DIR environment variable tells hipDNN where\n"
-              << "to look for plugin shared libraries at handle creation time.\n"
-              << "The plugin's GPU ReLU engine is used via HIPRTC.\n\n";
-
-    std::string pluginDir = hipdnn_data_sdk::utilities::getEnv("HIPDNN_PLUGIN_DIR");
-    if(pluginDir.empty())
+    std::vector<std::filesystem::path> paths;
+    auto err = getLoadedEnginePluginPaths(handle, paths);
+    if(err.is_bad() || paths.empty())
     {
-        std::cout << "  NOTE: Scenario 1 skipped. To run this scenario, set "
-                     "HIPDNN_PLUGIN_DIR=</absolute/path/to/plugin/dir> "
-                     "(the example_plugin library is assumed to be in that folder).\n";
-        return true; // Not a failure, just skipped
-    }
-
-    std::cout << "  HIPDNN_PLUGIN_DIR = " << pluginDir << "\n";
-
-    hipdnnHandle_t handle = nullptr;
-    if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
-    {
-        std::cerr << "  ERROR: hipdnnCreate failed\n";
+        std::cerr << "  ERROR: No plugins loaded after " << modeLabel << "\n";
         return false;
     }
 
-    std::cout << "  Loaded plugins:\n";
-    printLoadedPlugins(handle);
-
-    std::vector<float> input = {-2.0f, -1.0f, 0.0f, 1.0f, 2.0f, 3.0f};
-    std::vector<float> output;
-
-    if(!runReluGraph(handle, "Scenario1", input, output))
+    bool found = false;
+    for(const auto& path : paths)
     {
-        hipdnnDestroy(handle);
+        if(path.string().find("example_plugin") != std::string::npos)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    if(!found)
+    {
+        std::cerr << "  ERROR: example_plugin not found among loaded plugins after " << modeLabel
+                  << "\n";
         return false;
     }
 
-    printVector("Input ", input);
-    printVector("Output", output);
-
-    hipdnnDestroy(handle);
-    std::cout << "  Scenario 1 completed successfully.\n";
+    std::cout << "  Plugin verified present after " << modeLabel << "\n";
     return true;
 }
 
 // ============================================================================
-// Scenario 2: Load with ADDITIVE mode
+// Scenario 1: ReLU Forward with Engine Selection and Knob Modification
 // ============================================================================
-static bool scenario2_AdditiveMode(const std::string& pluginDir)
+static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
 {
-    std::cout << "\n=== Scenario 2: ADDITIVE Loading Mode ===\n";
-    std::cout << "ADDITIVE mode loads the specified plugin directories alongside\n"
-              << "any system-installed plugins.  This is the default mode.\n\n";
+    std::cout << "\n=== Scenario 1: ReLU Forward with Engine Selection and Knob Modification ===\n";
+    std::cout << "Demonstrates the explicit 6-step graph build sequence, engine\n"
+              << "selection by name, and knob modification for leaky ReLU.\n\n";
 
+    // Use ABSOLUTE mode so the example plugin is loaded regardless of
+    // system-installed plugins
     std::vector<std::string> pluginPaths = {pluginDir};
-    auto err = hipdnn_frontend::setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ADDITIVE);
-    if(err.is_bad())
-    {
-        std::cerr << "  ERROR: setEnginePluginPaths (ADDITIVE) failed: " << err.err_msg << "\n";
-        return false;
-    }
+    setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ABSOLUTE);
 
     hipdnnHandle_t handle = nullptr;
     if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
@@ -276,108 +281,124 @@ static bool scenario2_AdditiveMode(const std::string& pluginDir)
         return false;
     }
 
-    std::cout << "  Loaded plugins (ADDITIVE):\n";
-    printLoadedPlugins(handle);
-
-    std::vector<float> input = {-3.0f, 0.0f, 3.0f, -0.5f};
-    std::vector<float> output;
-
-    if(!runReluGraph(handle, "Scenario2", input, output))
-    {
-        hipdnnDestroy(handle);
-        return false;
-    }
-
-    printVector("Input ", input);
-    printVector("Output", output);
-
-    hipdnnDestroy(handle);
-    std::cout << "  Scenario 2 completed successfully.\n";
-    return true;
-}
-
-// ============================================================================
-// Scenario 3: Load with ABSOLUTE mode
-// ============================================================================
-static bool scenario3_AbsoluteMode(const std::string& pluginDir)
-{
-    std::cout << "\n=== Scenario 3: ABSOLUTE Loading Mode ===\n";
-    std::cout << "ABSOLUTE mode replaces all plugin search paths with only the\n"
-              << "specified directories.  System-installed plugins are ignored.\n\n";
-
-    std::vector<std::string> pluginPaths = {pluginDir};
-    auto err = hipdnn_frontend::setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ABSOLUTE);
-    if(err.is_bad())
-    {
-        std::cerr << "  ERROR: setEnginePluginPaths (ABSOLUTE) failed: " << err.err_msg << "\n";
-        return false;
-    }
-
-    hipdnnHandle_t handle = nullptr;
-    if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
-    {
-        std::cerr << "  ERROR: hipdnnCreate failed\n";
-        return false;
-    }
-
-    std::cout << "  Loaded plugins (ABSOLUTE -- only our plugin):\n";
-    printLoadedPlugins(handle);
-
-    std::vector<float> input = {-10.0f, 0.0f, 10.0f, -0.001f};
-    std::vector<float> output;
-
-    if(!runReluGraph(handle, "Scenario3", input, output))
-    {
-        hipdnnDestroy(handle);
-        return false;
-    }
-
-    printVector("Input ", input);
-    printVector("Output", output);
-
-    hipdnnDestroy(handle);
-    std::cout << "  Scenario 3 completed successfully.\n";
-    return true;
-}
-
-// ============================================================================
-// Scenario 4: Engine selection by name (ReLU on GPU)
-// ============================================================================
-static bool scenario4_EngineSelection(const std::string& pluginDir)
-{
-    std::cout << "\n=== Scenario 4: Engine Selection by Name (GPU ReLU) ===\n";
-    std::cout << "set_preferred_engine_id_ext() selects a specific engine by name.\n"
-              << "This bypasses the heuristic engine ranking and forces hipDNN to\n"
-              << "use the named engine if it supports the requested operation.\n\n";
-
-    // Use ABSOLUTE mode so we know exactly which plugins are loaded
-    std::vector<std::string> pluginPaths = {pluginDir};
-    hipdnn_frontend::setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ABSOLUTE);
-
-    hipdnnHandle_t handle = nullptr;
-    if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
-    {
-        std::cerr << "  ERROR: hipdnnCreate failed\n";
-        return false;
-    }
-
-    // Build a ReLU graph and explicitly select the GPU engine
     std::vector<int64_t> dims = {1, 1, 1, 6};
-    auto graph = createReluGraph("Scenario4", dims);
 
+    auto graph = std::make_shared<hipdnn_frontend::graph::Graph>();
+    graph->set_name("Scenario1_ReLU")
+        .set_io_data_type(DataType::FLOAT)
+        .set_intermediate_data_type(DataType::FLOAT)
+        .set_compute_data_type(DataType::FLOAT);
+
+    auto x = std::make_shared<hipdnn_frontend::graph::TensorAttributes>();
+    x->set_uid(1)
+        .set_name("X")
+        .set_dim(dims)
+        .set_stride({dims[1] * dims[2] * dims[3], dims[2] * dims[3], dims[3], 1})
+        .set_data_type(DataType::FLOAT);
+
+    hipdnn_frontend::graph::PointwiseAttributes attrs;
+    attrs.set_name("relu_fwd");
+    attrs.set_mode(PointwiseMode::RELU_FWD);
+
+    auto y = graph->pointwise(x, attrs);
+    y->set_uid(2).set_data_type(DataType::FLOAT).set_output(true);
+
+    // Select the example plugin's GPU ReLU engine by name
     std::cout << "  Selecting engine: EXAMPLE_PLUGIN_RELU_ENGINE\n";
     graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_RELU_ENGINE");
 
-    auto result = graph->build(handle);
+    auto result = graph->validate();
     if(result.code != ErrorCode::OK)
     {
-        std::cerr << "  ERROR: build failed: " << result.err_msg << "\n";
+        std::cerr << "  ERROR: validate failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
 
+    result = graph->build_operation_graph(handle);
+    if(result.code != ErrorCode::OK)
+    {
+        std::cerr << "  ERROR: build_operation_graph failed: " << result.err_msg << "\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    // Query available engines and their knobs
+    std::vector<int64_t> rankedEngineIds;
+    result = graph->get_ranked_engine_ids(rankedEngineIds);
+    if(result.code != ErrorCode::OK)
+    {
+        std::cerr << "  ERROR: get_ranked_engine_ids failed: " << result.err_msg << "\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    if(rankedEngineIds.empty())
+    {
+        std::cerr << "  ERROR: No engines available\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    int64_t engineId = rankedEngineIds[0];
+
+    std::vector<Knob> knobs;
+    result = graph->get_knobs_for_engine(engineId, knobs);
+    if(result.code != ErrorCode::OK)
+    {
+        std::cerr << "  ERROR: get_knobs_for_engine failed: " << result.err_msg << "\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    std::cout << "  Engine has " << knobs.size() << " knob(s):\n";
+    for(const auto& knob : knobs)
+    {
+        std::cout << "    " << knob.knobId()
+                  << " (default=" << knobValueToString(knob.defaultValue()) << ")\n";
+    }
+
+    // Set negative_slope = 0.1
+    std::vector<KnobSetting> settings;
+    settings.emplace_back("example.relu.negative_slope", 0.1);
+    std::cout << "  Setting example.relu.negative_slope = 0.1\n";
+
+    result = graph->create_execution_plan_ext(engineId, settings);
+    if(result.code != ErrorCode::OK)
+    {
+        std::cerr << "  ERROR: create_execution_plan_ext failed: " << result.err_msg << "\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    result = graph->check_support();
+    if(result.code != ErrorCode::OK)
+    {
+        std::cerr << "  ERROR: check_support failed: " << result.err_msg << "\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    result = graph->build_plans();
+    if(result.code != ErrorCode::OK)
+    {
+        std::cerr << "  ERROR: build_plans failed: " << result.err_msg << "\n";
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    std::cout << "  Graph built successfully.\n";
+
+    if(!hasGpu)
+    {
+        std::cout << "  GPU execution skipped (no GPU detected).\n";
+        hipdnnDestroy(handle);
+        return true;
+    }
+
+    // GPU execution and verification
     std::vector<float> input = {-1.0f, -0.5f, 0.0f, 0.5f, 1.0f, 1.5f};
-    std::vector<float> output(6, -999.0f);
+    std::vector<float> output(input.size(), -999.0f);
 
     const size_t bufferSize = input.size() * sizeof(float);
     float* dInput = nullptr;
@@ -407,17 +428,24 @@ static bool scenario4_EngineSelection(const std::string& pluginDir)
         return false;
     }
 
-    checkHip(hipMemcpy(output.data(), dOutput, bufferSize, hipMemcpyDeviceToHost), "hipMemcpy D2H");
+    if(!checkHip(hipMemcpy(output.data(), dOutput, bufferSize, hipMemcpyDeviceToHost),
+                 "hipMemcpy D2H"))
+    {
+        static_cast<void>(hipFree(dInput));
+        static_cast<void>(hipFree(dOutput));
+        hipdnnDestroy(handle);
+        return false;
+    }
 
     printVector("Input ", input);
     printVector("Output", output);
 
-    // Verify correctness
+    // Verify correctness: ReLU(x) = x >= 0 ? x : 0.1 * x
     bool correct = true;
     for(size_t i = 0; i < input.size(); ++i)
     {
-        float expected = std::max(0.0f, input[i]);
-        if(output[i] != expected)
+        float expected = input[i] >= 0.0f ? input[i] : 0.1f * input[i];
+        if(std::abs(output[i] - expected) > 1e-6f)
         {
             std::cerr << "  MISMATCH at [" << i << "]: expected " << expected << ", got "
                       << output[i] << "\n";
@@ -426,29 +454,37 @@ static bool scenario4_EngineSelection(const std::string& pluginDir)
     }
     if(correct)
     {
-        std::cout << "  All outputs match expected ReLU(x) = max(0, x)\n";
+        std::cout << "  All outputs match expected ReLU (slope=0.1)\n";
     }
 
     static_cast<void>(hipFree(dInput));
     static_cast<void>(hipFree(dOutput));
     hipdnnDestroy(handle);
-    std::cout << "  Scenario 4 completed successfully.\n";
+
+    if(!correct)
+    {
+        return false;
+    }
+
+    std::cout << "  Scenario 1 completed successfully.\n";
     return true;
 }
 
 // ============================================================================
-// Scenario 5: Convolution Forward on GPU
+// Scenario 2: Convolution Forward with Engine Selection
 // ============================================================================
-static bool scenario5_ConvForward(const std::string& pluginDir)
+static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
 {
-    std::cout << "\n=== Scenario 5: Convolution Forward on GPU ===\n";
-    std::cout << "This demonstrates the GPU ConvFwd engine using HIPRTC.\n"
-              << "A 5x5 input is convolved with a 3x3 filter (no padding,\n"
-              << "stride=1) to produce a 3x3 output.\n\n";
+    std::cout << "\n=== Scenario 2: Convolution Forward with Engine Selection ===\n";
+    std::cout << "Demonstrates ConvFwd graph construction with NCHW/KCRS tensor\n"
+              << "layouts, the build() convenience method, Tensor class for GPU\n"
+              << "memory management, and two verification approaches: hardcoded\n"
+              << "expected values and CPU reference.\n\n";
 
-    // Use ABSOLUTE mode
+    // Use ABSOLUTE mode so the example plugin is loaded regardless of
+    // system-installed plugins
     std::vector<std::string> pluginPaths = {pluginDir};
-    hipdnn_frontend::setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ABSOLUTE);
+    setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ABSOLUTE);
 
     hipdnnHandle_t handle = nullptr;
     if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
@@ -457,41 +493,48 @@ static bool scenario5_ConvForward(const std::string& pluginDir)
         return false;
     }
 
-    // Dimensions: N=1, C=1, H=5, W=5, K=1, R=3, S=3
-    const int64_t N = 1, C = 1, H = 5, W = 5;
+    // Dimensions: N=1, C=1, H=4, W=4, K=1, R=3, S=3
+    // No padding, stride=1, dilation=1 => output 1x1x2x2
+    const int64_t N = 1, C = 1, H = 4, W = 4;
     const int64_t K = 1, R = 3, S = 3;
-    const int64_t outH = H - R + 1; // 3
-    const int64_t outW = W - S + 1; // 3
+    const int64_t outH = H - R + 1; // 2
+    const int64_t outW = W - S + 1; // 2
 
-    auto graph = std::make_shared<Graph>();
-    graph->set_name("Scenario5_ConvFwd")
+    auto graph = std::make_shared<hipdnn_frontend::graph::Graph>();
+    graph->set_name("Scenario2_ConvFwd")
         .set_io_data_type(DataType::FLOAT)
         .set_intermediate_data_type(DataType::FLOAT)
         .set_compute_data_type(DataType::FLOAT);
 
-    auto x = std::make_shared<TensorAttributes>();
-    x->set_uid(1)
-        .set_name("X")
-        .set_dim({N, C, H, W})
-        .set_stride({C * H * W, H * W, W, 1})
-        .set_data_type(DataType::FLOAT);
+    // Input tensor X: NCHW layout (using makeTensorAttributes + generateStrides)
+    auto xAttr = std::make_shared<hipdnn_frontend::graph::TensorAttributes>(
+        hipdnn_frontend::graph::makeTensorAttributes(
+            "X",
+            DataType::FLOAT,
+            {N, C, H, W},
+            hipdnn_data_sdk::utilities::generateStrides({N, C, H, W})));
 
-    auto w = std::make_shared<TensorAttributes>();
-    w->set_uid(2)
-        .set_name("W")
-        .set_dim({K, C, R, S})
-        .set_stride({C * R * S, R * S, S, 1})
-        .set_data_type(DataType::FLOAT);
+    // Weight tensor W: KCRS layout (using makeTensorAttributes + generateStrides)
+    auto wAttr = std::make_shared<hipdnn_frontend::graph::TensorAttributes>(
+        hipdnn_frontend::graph::makeTensorAttributes(
+            "W",
+            DataType::FLOAT,
+            {K, C, R, S},
+            hipdnn_data_sdk::utilities::generateStrides({K, C, R, S})));
 
-    ConvFpropAttributes convAttrs;
+    hipdnn_frontend::graph::ConvFpropAttributes convAttrs;
     convAttrs.set_padding({0, 0}).set_stride({1, 1}).set_dilation({1, 1});
 
-    auto y = graph->conv_fprop(x, w, convAttrs);
-    y->set_uid(3).set_data_type(DataType::FLOAT).set_output(true);
+    // Output tensor Y (attributes derived from conv_fprop)
+    auto yOut = graph->conv_fprop(xAttr, wAttr, convAttrs);
+    yOut->set_data_type(DataType::FLOAT).set_output(true);
 
+    // Select the example plugin's ConvFwd engine by name
     std::cout << "  Selecting engine: EXAMPLE_PLUGIN_CONV_FWD_ENGINE\n";
     graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_CONV_FWD_ENGINE");
 
+    // Use the build() convenience method (contrasts with Scenario 1's explicit
+    // 6-step sequence, showing both API styles)
     auto result = graph->build(handle);
     if(result.code != ErrorCode::OK)
     {
@@ -500,79 +543,273 @@ static bool scenario5_ConvForward(const std::string& pluginDir)
         return false;
     }
 
-    // 5x5 input matrix (values 1..25)
-    // clang-format off
-    std::vector<float> inputData = {
-         1.0f,  2.0f,  3.0f,  4.0f,  5.0f,
-         6.0f,  7.0f,  8.0f,  9.0f, 10.0f,
-        11.0f, 12.0f, 13.0f, 14.0f, 15.0f,
-        16.0f, 17.0f, 18.0f, 19.0f, 20.0f,
-        21.0f, 22.0f, 23.0f, 24.0f, 25.0f
-    };
-    // clang-format on
+    std::cout << "  Graph built successfully.\n";
 
-    // 3x3 edge-detection-style filter
-    // clang-format off
-    std::vector<float> weightData = {
-         1.0f,  0.0f, -1.0f,
-         2.0f,  0.0f, -2.0f,
-         1.0f,  0.0f, -1.0f
-    };
-    // clang-format on
-
-    const size_t inputSize = inputData.size() * sizeof(float);
-    const size_t weightSize = weightData.size() * sizeof(float);
-    const size_t outputSize = static_cast<size_t>(N * K * outH * outW) * sizeof(float);
-
-    float* dInput = nullptr;
-    float* dWeight = nullptr;
-    float* dOutput = nullptr;
-    if(!checkHip(hipMalloc(&dInput, inputSize), "hipMalloc input")
-       || !checkHip(hipMalloc(&dWeight, weightSize), "hipMalloc weight")
-       || !checkHip(hipMalloc(&dOutput, outputSize), "hipMalloc output"))
+    if(!hasGpu)
     {
-        static_cast<void>(hipFree(dInput));
-        static_cast<void>(hipFree(dWeight));
-        static_cast<void>(hipFree(dOutput));
+        std::cout << "  GPU execution skipped (no GPU detected).\n";
         hipdnnDestroy(handle);
-        return false;
+        return true;
     }
 
-    checkHip(hipMemcpy(dInput, inputData.data(), inputSize, hipMemcpyHostToDevice), "H2D input");
-    checkHip(hipMemcpy(dWeight, weightData.data(), weightSize, hipMemcpyHostToDevice),
-             "H2D weight");
+    // 4x4 input matrix (values 1..16), managed by Tensor class
+    // clang-format off
+    std::vector<float> inputData = {
+         1.0f,  2.0f,  3.0f,  4.0f,
+         5.0f,  6.0f,  7.0f,  8.0f,
+         9.0f, 10.0f, 11.0f, 12.0f,
+        13.0f, 14.0f, 15.0f, 16.0f
+    };
+    // clang-format on
+
+    // 3x3 all-ones filter for easy verification
+    std::vector<float> weightData(static_cast<size_t>(R * S), 1.0f);
+
+    // Use Tensor class for GPU memory management (host+device allocation,
+    // automatic H2D/D2H transfers) instead of raw hipMalloc/hipMemcpy/hipFree
+    hipdnn_data_sdk::utilities::Tensor<float> xTensor({N, C, H, W});
+    xTensor.fillWithData(inputData.data(), inputData.size() * sizeof(float));
+
+    hipdnn_data_sdk::utilities::Tensor<float> wTensor({K, C, R, S});
+    wTensor.fillWithData(weightData.data(), weightData.size() * sizeof(float));
+
+    hipdnn_data_sdk::utilities::Tensor<float> yTensor({N, K, outH, outW});
+    yTensor.fillWithValue(0.0f);
 
     std::unordered_map<int64_t, void*> variantPack;
-    variantPack[1] = dInput;
-    variantPack[2] = dWeight;
-    variantPack[3] = dOutput;
+    variantPack[xAttr->get_uid()] = xTensor.memory().deviceData();
+    variantPack[wAttr->get_uid()] = wTensor.memory().deviceData();
+    variantPack[yOut->get_uid()] = yTensor.memory().deviceData();
 
     result = graph->execute(handle, variantPack, nullptr);
     if(result.code != ErrorCode::OK)
     {
         std::cerr << "  ERROR: execute failed: " << result.err_msg << "\n";
-        static_cast<void>(hipFree(dInput));
-        static_cast<void>(hipFree(dWeight));
-        static_cast<void>(hipFree(dOutput));
         hipdnnDestroy(handle);
         return false;
     }
 
-    std::vector<float> outputData(static_cast<size_t>(N * K * outH * outW));
-    checkHip(hipMemcpy(outputData.data(), dOutput, outputSize, hipMemcpyDeviceToHost),
-             "D2H output");
+    // Transfer output from device to host via Tensor's managed memory
+    yTensor.memory().markDeviceModified();
+    auto yHostPtr = yTensor.memory().hostData();
 
     printMatrix("Input", inputData, static_cast<int>(H), static_cast<int>(W));
     std::cout << "\n";
-    printMatrix("Filter", weightData, static_cast<int>(R), static_cast<int>(S));
+    printMatrix("Filter (all ones)", weightData, static_cast<int>(R), static_cast<int>(S));
     std::cout << "\n";
+    std::vector<float> outputData(yHostPtr, yHostPtr + N * K * outH * outW);
     printMatrix("Output", outputData, static_cast<int>(outH), static_cast<int>(outW));
 
-    static_cast<void>(hipFree(dInput));
-    static_cast<void>(hipFree(dWeight));
-    static_cast<void>(hipFree(dOutput));
+    // ---- Verification 1: Hardcoded expected values ----
+    // With a 4x4 input (values 1-16) and a 3x3 all-ones filter (no padding,
+    // stride 1), each output element is the sum of a 3x3 window:
+    //   output[0,0] = 1+2+3+5+6+7+9+10+11       = 54
+    //   output[0,1] = 2+3+4+6+7+8+10+11+12       = 63
+    //   output[1,0] = 5+6+7+9+10+11+13+14+15     = 90
+    //   output[1,1] = 6+7+8+10+11+12+14+15+16    = 99
+    std::cout << "\n  Verification 1: Hardcoded expected values\n";
+    std::vector<float> expectedHardcoded = {54.0f, 63.0f, 90.0f, 99.0f};
+
+    bool hardcodedCorrect = true;
+    for(size_t i = 0; i < expectedHardcoded.size(); ++i)
+    {
+        if(std::abs(yHostPtr[i] - expectedHardcoded[i]) > 1e-5f)
+        {
+            std::cerr << "  MISMATCH at [" << i << "]: expected " << expectedHardcoded[i]
+                      << ", got " << yHostPtr[i] << "\n";
+            hardcodedCorrect = false;
+        }
+    }
+    if(hardcodedCorrect)
+    {
+        std::cout << "  All outputs match expected values {54, 63, 90, 99}\n";
+    }
+
+    // ---- Verification 2: CPU reference via hipdnn_test_sdk ----
+    // This demonstrates the hipdnn_test_sdk CPU reference approach for
+    // operations where expected values are not trivially derivable. Plugin
+    // developers can use this pattern for testing more complex convolution
+    // configurations (larger kernels, padding, stride > 1). Requires linking
+    // the header-only hipdnn_test_sdk library.
+    std::cout << "\n  Verification 2: CPU reference (hipdnn_test_sdk)\n";
+
+    hipdnn_data_sdk::utilities::Tensor<float> yRef({N, K, outH, outW});
+    yRef.fillWithValue(0.0f);
+
+    hipdnn_test_sdk::utilities::CpuFpReferenceConvolution::fprop(xTensor,
+                                                                 wTensor,
+                                                                 yRef,
+                                                                 {int64_t{1}, int64_t{1}},
+                                                                 {int64_t{1}, int64_t{1}},
+                                                                 {int64_t{0}, int64_t{0}});
+
+    auto expectedCount = static_cast<size_t>(N * K * outH * outW);
+    auto cpuRefPtr = yRef.rawHostData();
+
+    bool cpuRefCorrect = true;
+    for(size_t i = 0; i < expectedCount; ++i)
+    {
+        auto cpuRefVal = static_cast<const float*>(cpuRefPtr)[i];
+        if(std::abs(yHostPtr[i] - cpuRefVal) > 1e-5f)
+        {
+            std::cerr << "  CPU ref MISMATCH at [" << i << "]: expected " << cpuRefVal << ", got "
+                      << yHostPtr[i] << "\n";
+            cpuRefCorrect = false;
+        }
+    }
+    if(cpuRefCorrect)
+    {
+        std::cout << "  All outputs match CPU reference convolution\n";
+    }
+
     hipdnnDestroy(handle);
-    std::cout << "\n  Scenario 5 completed successfully.\n";
+
+    if(!hardcodedCorrect || !cpuRefCorrect)
+    {
+        return false;
+    }
+
+    std::cout << "\n  Scenario 2 completed successfully.\n";
+    return true;
+}
+
+// ============================================================================
+// Scenario 3: Plugin Loading Modes
+// ============================================================================
+static bool scenario3_PluginLoadingModes(const std::string& pluginDir, bool hasGpu)
+{
+    std::cout << "\n=== Scenario 3: Plugin Loading Modes ===\n";
+    std::cout << "Demonstrates ADDITIVE and ABSOLUTE loading modes with\n"
+              << "presence verification after each mode.\n\n";
+
+    // ---- ADDITIVE mode ----
+    std::cout << "  --- ADDITIVE mode ---\n";
+    std::cout << "  ADDITIVE mode loads the specified plugin directories alongside\n"
+              << "  any system-installed plugins. This is the default mode.\n\n";
+
+    std::vector<std::string> pluginPaths = {pluginDir};
+    auto err = setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ADDITIVE);
+    if(err.is_bad())
+    {
+        std::cerr << "  ERROR: setEnginePluginPaths (ADDITIVE) failed: " << err.err_msg << "\n";
+        return false;
+    }
+
+    hipdnnHandle_t handle = nullptr;
+    if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
+    {
+        std::cerr << "  ERROR: hipdnnCreate failed (ADDITIVE)\n";
+        return false;
+    }
+
+    std::cout << "  Loaded plugins (ADDITIVE):\n";
+    printLoadedPlugins(handle);
+
+    if(!verifyPluginPresence(handle, "ADDITIVE loading"))
+    {
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    hipdnnDestroy(handle);
+    handle = nullptr;
+
+    // ---- ABSOLUTE mode ----
+    std::cout << "\n  --- ABSOLUTE mode ---\n";
+    std::cout << "  ABSOLUTE mode replaces all plugin search paths with only the\n"
+              << "  specified directories. System-installed plugins are ignored.\n\n";
+
+    err = setEnginePluginPaths(pluginPaths, PluginLoadingMode::MODE_ABSOLUTE);
+    if(err.is_bad())
+    {
+        std::cerr << "  ERROR: setEnginePluginPaths (ABSOLUTE) failed: " << err.err_msg << "\n";
+        return false;
+    }
+
+    if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
+    {
+        std::cerr << "  ERROR: hipdnnCreate failed (ABSOLUTE)\n";
+        return false;
+    }
+
+    std::cout << "  Loaded plugins (ABSOLUTE -- only our plugin):\n";
+    printLoadedPlugins(handle);
+
+    if(!verifyPluginPresence(handle, "ABSOLUTE loading"))
+    {
+        hipdnnDestroy(handle);
+        return false;
+    }
+
+    // Run a quick ReLU execution to confirm the loaded plugin is functional
+    if(hasGpu)
+    {
+        std::cout << "\n  Running quick ReLU to confirm plugin functionality...\n";
+        std::vector<float> input = {-2.0f, 0.0f, 3.0f};
+        std::vector<float> output;
+        if(!runReluGraph(handle, "Scenario3_QuickReLU", input, output))
+        {
+            hipdnnDestroy(handle);
+            return false;
+        }
+
+        // Verify the output
+        bool correct = true;
+        for(size_t i = 0; i < input.size(); ++i)
+        {
+            float expected = std::max(0.0f, input[i]);
+            if(output[i] != expected)
+            {
+                std::cerr << "  MISMATCH at [" << i << "]: expected " << expected << ", got "
+                          << output[i] << "\n";
+                correct = false;
+            }
+        }
+        if(correct)
+        {
+            std::cout << "  Quick ReLU verification passed.\n";
+        }
+        else
+        {
+            hipdnnDestroy(handle);
+            return false;
+        }
+    }
+    else
+    {
+        std::cout << "\n  GPU execution skipped (no GPU detected).\n";
+    }
+
+    hipdnnDestroy(handle);
+    handle = nullptr;
+
+    // ---- Optional: HIPDNN_PLUGIN_DIR environment variable ----
+    std::string envPluginDir = hipdnn_data_sdk::utilities::getEnv("HIPDNN_PLUGIN_DIR");
+    if(!envPluginDir.empty())
+    {
+        std::cout << "\n  --- HIPDNN_PLUGIN_DIR environment variable ---\n";
+        std::cout << "  HIPDNN_PLUGIN_DIR = " << envPluginDir << "\n";
+        std::cout << "  hipDNN uses this environment variable at handle creation time\n"
+                  << "  to discover plugin shared libraries.\n";
+
+        if(hipdnnCreate(&handle) != HIPDNN_STATUS_SUCCESS)
+        {
+            std::cerr << "  ERROR: hipdnnCreate failed (env var)\n";
+            return false;
+        }
+
+        std::cout << "  Loaded plugins (via env var):\n";
+        printLoadedPlugins(handle);
+
+        hipdnnDestroy(handle);
+    }
+    else
+    {
+        std::cout << "\n  NOTE: HIPDNN_PLUGIN_DIR is not set. Set it to demonstrate\n"
+                  << "  environment-variable-based plugin loading.\n";
+    }
+
+    std::cout << "  Scenario 3 completed successfully.\n";
     return true;
 }
 
@@ -583,19 +820,22 @@ int main(int argc, char* argv[])
 {
     std::cout << "hipDNN Example Plugin Sample Application\n";
     std::cout << "=========================================\n";
-    std::cout << "All operations execute on GPU via HIPRTC-compiled kernels.\n";
 
     // Check GPU availability
+    bool hasGpu = false;
     int deviceCount = 0;
-    if(hipGetDeviceCount(&deviceCount) != hipSuccess || deviceCount == 0)
+    if(hipGetDeviceCount(&deviceCount) == hipSuccess && deviceCount > 0)
     {
-        std::cerr << "ERROR: No GPU detected. This sample requires a GPU with ROCm support.\n";
-        return 1;
+        hasGpu = true;
+        hipDeviceProp_t props;
+        static_cast<void>(hipGetDeviceProperties(&props, 0));
+        std::cout << "GPU: " << props.name << " (" << props.gcnArchName << ")\n";
     }
-
-    hipDeviceProp_t props;
-    static_cast<void>(hipGetDeviceProperties(&props, 0));
-    std::cout << "GPU: " << props.name << " (" << props.gcnArchName << ")\n";
+    else
+    {
+        std::cout << "No GPU detected. Skipping GPU execution scenarios.\n"
+                  << "Running non-GPU portions only.\n";
+    }
 
     // Determine plugin directory: CLI argument > HIPDNN_PLUGIN_DIR > executable directory
     std::string pluginDir;
@@ -621,11 +861,9 @@ int main(int argc, char* argv[])
 
     bool allPassed = true;
 
-    allPassed = scenario1_EnvVariable() && allPassed;
-    allPassed = scenario2_AdditiveMode(pluginDir) && allPassed;
-    allPassed = scenario3_AbsoluteMode(pluginDir) && allPassed;
-    allPassed = scenario4_EngineSelection(pluginDir) && allPassed;
-    allPassed = scenario5_ConvForward(pluginDir) && allPassed;
+    allPassed = scenario1_ReluForward(pluginDir, hasGpu) && allPassed;
+    allPassed = scenario2_ConvForward(pluginDir, hasGpu) && allPassed;
+    allPassed = scenario3_PluginLoadingModes(pluginDir, hasGpu) && allPassed;
 
     std::cout << "\n=========================================\n";
     if(allPassed)

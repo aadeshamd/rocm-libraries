@@ -20,7 +20,6 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # Options
 # =============================================================================
 option(HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS "Build unit tests" ON)
-option(HIPDNN_EXAMPLE_PLUGIN_BUILD_INTEGRATION_TESTS "Build integration tests (requires hipdnn_frontend)" ON)
 option(HIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE "Build sample application (requires hipdnn_frontend)" ON)
 
 # =============================================================================
@@ -76,16 +75,12 @@ if(NOT DEFINED HIPDNN_RELATIVE_INSTALL_PLUGIN_ENGINE_DIR)
 endif()
 install(TARGETS example_plugin LIBRARY DESTINATION ${HIPDNN_RELATIVE_INSTALL_PLUGIN_ENGINE_DIR})
 
-if(HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS)
+if(HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS OR HIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE)
     enable_testing()
-    add_subdirectory(tests)
 endif()
 
-if(HIPDNN_EXAMPLE_PLUGIN_BUILD_INTEGRATION_TESTS)
-    if(NOT HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS)
-        enable_testing()
-    endif()
-    add_subdirectory(integration_tests)
+if(HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS)
+    add_subdirectory(tests)
 endif()
 
 if(HIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE)
