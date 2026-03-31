@@ -314,7 +314,7 @@ CK_TILE_HOST_DEVICE constexpr auto get_uniformed_p_dim_lengths_over_h_impl()
     constexpr auto uniformed_ps_to_rhss_minor_ =
         unpack([](auto... xs_) { return merge_sequences(xs_...); }, Ps2RHssMinor{});
 
-    constexpr auto p_len_ = []() {
+    constexpr auto p_len_ = [uniformed_ps_to_rhss_major_, uniformed_ps_to_rhss_minor_]() {
         array<index_t, NDimX> len_{1};
         static_for<0, NDimX, 1>{}([&](auto idim_x_) {
             constexpr auto major_ = number<idim_x_ + 1>{}; // RDim
@@ -350,7 +350,9 @@ CK_TILE_HOST_DEVICE constexpr auto get_uniformed_idx_p_to_h_impl()
         get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
 
     constexpr auto all_ps_2_rhss = transform_sequences(
-        [](auto major, auto minor) constexpr { return rh_dim_prefix_sum.at(major) + minor; },
+        [rh_dim_prefix_sum](auto major, auto minor) constexpr {
+            return rh_dim_prefix_sum.at(major) + minor;
+        },
         uniformed_ps_to_rhss_major_,
         uniformed_ps_to_rhss_minor_);
 
@@ -369,7 +371,9 @@ CK_TILE_HOST_DEVICE constexpr auto get_uniformed_idx_y_to_rh_impl()
         get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
 
     constexpr auto all_ys_2_rhss = transform_sequences(
-        [](auto major, auto minor) constexpr { return rh_dim_prefix_sum.at(major) + minor; },
+        [rh_dim_prefix_sum](auto major, auto minor) constexpr {
+            return rh_dim_prefix_sum.at(major) + minor;
+        },
         Ys2RHsMajor{},
         Ys2RHsMinor{});
 
@@ -388,7 +392,7 @@ CK_TILE_HOST_DEVICE constexpr auto get_uniformed_idx_y_to_h_impl()
         get_rh_dim_lengths_prefix_sum_impl<NDimX, NDimR, HsLengthss>();
 
     constexpr auto all_ys_2_rhss = transform_sequences(
-        [](auto major, auto minor) constexpr {
+        [rh_dim_prefix_sum](auto major, auto minor) constexpr {
             return rh_dim_prefix_sum.at(major) + minor - NDimR;
         },
         Ys2RHsMajor{},
@@ -406,15 +410,17 @@ template <index_t DimIdx,
 CK_TILE_HOST_DEVICE constexpr auto compute_y_to_h_mask_for_dim()
 {
     constexpr auto size_ = HsLengthss{}[number<DimIdx>{}].size();
-    array<index_t, size_> m_{0};
-    // TODO: we loop over all y for each h dim
-    for(auto j = 0; j < NDimY; j++)
-    {
-        if(Ys2RHsMajor{}[j] == (DimIdx + 1) /*RDim need plus 1*/)
+    constexpr auto m_    = [size_]() {
+        array<index_t, size_> result{0};
+        for(auto j = 0; j < NDimY; j++)
         {
-            m_[Ys2RHsMinor{}[j]] = 1;
+            if(Ys2RHsMajor{}[j] == (DimIdx + 1) /*RDim need plus 1*/)
+            {
+                result[Ys2RHsMinor{}[j]] = 1;
+            }
         }
-    }
+        return result;
+    }();
     return TO_SEQUENCE(m_, size_);
 }
 
