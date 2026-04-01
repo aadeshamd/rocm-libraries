@@ -176,7 +176,7 @@ namespace rocRoller::KernelGraph::ControlGraph
     requires(std::constructible_from<ControlGraph::Element,
                                      T>) inline std::optional<T> ControlGraph::get(int tag) const
     {
-        auto x = getElement(tag);
+        auto const& x = getElement(tag);
         if constexpr(CIsAnyOf<T, Operation, ControlEdge>)
         {
             if(std::holds_alternative<T>(x))
