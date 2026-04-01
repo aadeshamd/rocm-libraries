@@ -17,6 +17,7 @@
 #include <hipdnn_data_sdk/utilities/json/ConvolutionWrwAttributes.hpp>
 #include <hipdnn_data_sdk/utilities/json/CustomOpAttributes.hpp>
 #include <hipdnn_data_sdk/utilities/json/LayernormAttributes.hpp>
+#include <hipdnn_data_sdk/utilities/json/LayernormBackwardAttributes.hpp>
 #include <hipdnn_data_sdk/utilities/json/MatmulAttributes.hpp>
 #include <hipdnn_data_sdk/utilities/json/PointwiseAttributes.hpp>
 #include <hipdnn_data_sdk/utilities/json/RMSNormAttributes.hpp>
@@ -43,6 +44,7 @@ NLOHMANN_JSON_SERIALIZE_ENUM(
      {NodeAttributes::SdpaAttributes, "SdpaAttributes"},
      {NodeAttributes::SdpaBackwardAttributes, "SdpaBackwardAttributes"},
      {NodeAttributes::LayernormAttributes, "LayernormAttributes"},
+     {NodeAttributes::LayernormBackwardAttributes, "LayernormBackwardAttributes"},
      {NodeAttributes::RMSNormAttributes, "RMSNormAttributes"},
      {NodeAttributes::RMSNormBackwardAttributes, "RMSNormBackwardAttributes"},
      {NodeAttributes::BlockScaleDequantizeAttributes, "BlockScaleDequantizeAttributes"},
@@ -98,6 +100,9 @@ inline void to_json(nlohmann::json& nodeJson, const data_objects::Node& node)
         break;
     case data_objects::NodeAttributes::LayernormAttributes:
         nodeJson = *node.attributes_as_LayernormAttributes();
+        break;
+    case data_objects::NodeAttributes::LayernormBackwardAttributes:
+        nodeJson = *node.attributes_as_LayernormBackwardAttributes();
         break;
     case data_objects::NodeAttributes::RMSNormAttributes:
         nodeJson = *node.attributes_as_RMSNormAttributes();
@@ -181,6 +186,8 @@ inline auto to<data_objects::Node>(flatbuffers::FlatBufferBuilder& builder,
             return to<data_objects::SdpaBackwardAttributes>(builder, entry).Union();
         case data_objects::NodeAttributes::LayernormAttributes:
             return to<data_objects::LayernormAttributes>(builder, entry).Union();
+        case data_objects::NodeAttributes::LayernormBackwardAttributes:
+            return to<data_objects::LayernormBackwardAttributes>(builder, entry).Union();
         case data_objects::NodeAttributes::RMSNormAttributes:
             return to<data_objects::RMSNormAttributes>(builder, entry).Union();
         case data_objects::NodeAttributes::RMSNormBackwardAttributes:

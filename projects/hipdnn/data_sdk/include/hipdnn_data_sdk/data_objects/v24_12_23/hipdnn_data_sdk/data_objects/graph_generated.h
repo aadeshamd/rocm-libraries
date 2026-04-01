@@ -25,6 +25,7 @@ static_assert(FLATBUFFERS_VERSION_MAJOR == 24 &&
 #include "custom_op_attributes_generated.h"
 #include "data_types_generated.h"
 #include "layernorm_attributes_generated.h"
+#include "layernorm_backward_attributes_generated.h"
 #include "matmul_attributes_generated.h"
 #include "pointwise_attributes_generated.h"
 #include "reduction_attributes_generated.h"
@@ -70,11 +71,12 @@ enum class NodeAttributes : uint8_t {
   CustomOpAttributes = 16,
   RMSNormBackwardAttributes = 17,
   ReductionAttributes = 18,
+  LayernormBackwardAttributes = 19,
   MIN = NONE,
-  MAX = ReductionAttributes
+  MAX = LayernormBackwardAttributes
 };
 
-inline const NodeAttributes (&EnumValuesNodeAttributes())[19] {
+inline const NodeAttributes (&EnumValuesNodeAttributes())[20] {
   static const NodeAttributes values[] = {
     NodeAttributes::NONE,
     NodeAttributes::BatchnormInferenceAttributes,
@@ -94,13 +96,14 @@ inline const NodeAttributes (&EnumValuesNodeAttributes())[19] {
     NodeAttributes::SdpaBackwardAttributes,
     NodeAttributes::CustomOpAttributes,
     NodeAttributes::RMSNormBackwardAttributes,
-    NodeAttributes::ReductionAttributes
+    NodeAttributes::ReductionAttributes,
+    NodeAttributes::LayernormBackwardAttributes
   };
   return values;
 }
 
 inline const char * const *EnumNamesNodeAttributes() {
-  static const char * const names[20] = {
+  static const char * const names[21] = {
     "NONE",
     "BatchnormInferenceAttributes",
     "PointwiseAttributes",
@@ -120,13 +123,14 @@ inline const char * const *EnumNamesNodeAttributes() {
     "CustomOpAttributes",
     "RMSNormBackwardAttributes",
     "ReductionAttributes",
+    "LayernormBackwardAttributes",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameNodeAttributes(NodeAttributes e) {
-  if (::flatbuffers::IsOutRange(e, NodeAttributes::NONE, NodeAttributes::ReductionAttributes)) return "";
+  if (::flatbuffers::IsOutRange(e, NodeAttributes::NONE, NodeAttributes::LayernormBackwardAttributes)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesNodeAttributes()[index];
 }
@@ -207,6 +211,10 @@ template<> struct NodeAttributesTraits<hipdnn_data_sdk::data_objects::ReductionA
   static const NodeAttributes enum_value = NodeAttributes::ReductionAttributes;
 };
 
+template<> struct NodeAttributesTraits<hipdnn_data_sdk::data_objects::LayernormBackwardAttributes> {
+  static const NodeAttributes enum_value = NodeAttributes::LayernormBackwardAttributes;
+};
+
 template<typename T> struct NodeAttributesUnionTraits {
   static const NodeAttributes enum_value = NodeAttributes::NONE;
 };
@@ -281,6 +289,10 @@ template<> struct NodeAttributesUnionTraits<hipdnn_data_sdk::data_objects::RMSNo
 
 template<> struct NodeAttributesUnionTraits<hipdnn_data_sdk::data_objects::ReductionAttributesT> {
   static const NodeAttributes enum_value = NodeAttributes::ReductionAttributes;
+};
+
+template<> struct NodeAttributesUnionTraits<hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT> {
+  static const NodeAttributes enum_value = NodeAttributes::LayernormBackwardAttributes;
 };
 
 struct NodeAttributesUnion {
@@ -457,6 +469,14 @@ struct NodeAttributesUnion {
     return type == NodeAttributes::ReductionAttributes ?
       reinterpret_cast<const hipdnn_data_sdk::data_objects::ReductionAttributesT *>(value) : nullptr;
   }
+  hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *AsLayernormBackwardAttributes() {
+    return type == NodeAttributes::LayernormBackwardAttributes ?
+      reinterpret_cast<hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(value) : nullptr;
+  }
+  const hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *AsLayernormBackwardAttributes() const {
+    return type == NodeAttributes::LayernormBackwardAttributes ?
+      reinterpret_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(value) : nullptr;
+  }
 };
 
 
@@ -537,6 +557,10 @@ inline bool operator==(const NodeAttributesUnion &lhs, const NodeAttributesUnion
     case NodeAttributes::ReductionAttributes: {
       return *(reinterpret_cast<const hipdnn_data_sdk::data_objects::ReductionAttributesT *>(lhs.value)) ==
              *(reinterpret_cast<const hipdnn_data_sdk::data_objects::ReductionAttributesT *>(rhs.value));
+    }
+    case NodeAttributes::LayernormBackwardAttributes: {
+      return *(reinterpret_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(lhs.value)) ==
+             *(reinterpret_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(rhs.value));
     }
     default: {
       return false;
@@ -640,6 +664,9 @@ struct Node FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const hipdnn_data_sdk::data_objects::ReductionAttributes *attributes_as_ReductionAttributes() const {
     return attributes_type() == hipdnn_data_sdk::data_objects::NodeAttributes::ReductionAttributes ? static_cast<const hipdnn_data_sdk::data_objects::ReductionAttributes *>(attributes()) : nullptr;
   }
+  const hipdnn_data_sdk::data_objects::LayernormBackwardAttributes *attributes_as_LayernormBackwardAttributes() const {
+    return attributes_type() == hipdnn_data_sdk::data_objects::NodeAttributes::LayernormBackwardAttributes ? static_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributes *>(attributes()) : nullptr;
+  }
   void *mutable_attributes() {
     return GetPointer<void *>(VT_ATTRIBUTES);
   }
@@ -728,6 +755,10 @@ template<> inline const hipdnn_data_sdk::data_objects::RMSNormBackwardAttributes
 
 template<> inline const hipdnn_data_sdk::data_objects::ReductionAttributes *Node::attributes_as<hipdnn_data_sdk::data_objects::ReductionAttributes>() const {
   return attributes_as_ReductionAttributes();
+}
+
+template<> inline const hipdnn_data_sdk::data_objects::LayernormBackwardAttributes *Node::attributes_as<hipdnn_data_sdk::data_objects::LayernormBackwardAttributes>() const {
+  return attributes_as_LayernormBackwardAttributes();
 }
 
 struct NodeBuilder {
@@ -1168,6 +1199,10 @@ inline bool VerifyNodeAttributes(::flatbuffers::Verifier &verifier, const void *
       auto ptr = reinterpret_cast<const hipdnn_data_sdk::data_objects::ReductionAttributes *>(obj);
       return verifier.VerifyTable(ptr);
     }
+    case NodeAttributes::LayernormBackwardAttributes: {
+      auto ptr = reinterpret_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributes *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
     default: return true;
   }
 }
@@ -1259,6 +1294,10 @@ inline void *NodeAttributesUnion::UnPack(const void *obj, NodeAttributes type, c
       auto ptr = reinterpret_cast<const hipdnn_data_sdk::data_objects::ReductionAttributes *>(obj);
       return ptr->UnPack(resolver);
     }
+    case NodeAttributes::LayernormBackwardAttributes: {
+      auto ptr = reinterpret_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributes *>(obj);
+      return ptr->UnPack(resolver);
+    }
     default: return nullptr;
   }
 }
@@ -1338,6 +1377,10 @@ inline ::flatbuffers::Offset<void> NodeAttributesUnion::Pack(::flatbuffers::Flat
       auto ptr = reinterpret_cast<const hipdnn_data_sdk::data_objects::ReductionAttributesT *>(value);
       return CreateReductionAttributes(_fbb, ptr, _rehasher).Union();
     }
+    case NodeAttributes::LayernormBackwardAttributes: {
+      auto ptr = reinterpret_cast<const hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(value);
+      return CreateLayernormBackwardAttributes(_fbb, ptr, _rehasher).Union();
+    }
     default: return 0;
   }
 }
@@ -1414,6 +1457,10 @@ inline NodeAttributesUnion::NodeAttributesUnion(const NodeAttributesUnion &u) : 
     }
     case NodeAttributes::ReductionAttributes: {
       value = new hipdnn_data_sdk::data_objects::ReductionAttributesT(*reinterpret_cast<hipdnn_data_sdk::data_objects::ReductionAttributesT *>(u.value));
+      break;
+    }
+    case NodeAttributes::LayernormBackwardAttributes: {
+      value = new hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT(*reinterpret_cast<hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(u.value));
       break;
     }
     default:
@@ -1510,6 +1557,11 @@ inline void NodeAttributesUnion::Reset() {
     }
     case NodeAttributes::ReductionAttributes: {
       auto ptr = reinterpret_cast<hipdnn_data_sdk::data_objects::ReductionAttributesT *>(value);
+      delete ptr;
+      break;
+    }
+    case NodeAttributes::LayernormBackwardAttributes: {
+      auto ptr = reinterpret_cast<hipdnn_data_sdk::data_objects::LayernormBackwardAttributesT *>(value);
       delete ptr;
       break;
     }
