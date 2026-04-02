@@ -155,6 +155,57 @@ public:
         return ss.str();
     }
 
+    struct nonowned_reservation_t
+    {
+        nonowned_reservation_t(size_t block_byte_size = 0)
+            : byte_size(0)
+        {
+            if(block_byte_size > 0)
+                set_desired_size(block_byte_size);
+        }
+        // disable copies
+        nonowned_reservation_t(const nonowned_reservation_t&) = delete;
+        nonowned_reservation_t& operator=(const nonowned_reservation_t&) = delete;
+
+        void release()
+        {
+            if(byte_size > 0)
+            {
+                auto&            accountant = system_memory::singleton();
+                std::unique_lock lock(accountant.sys_memory_mutex);
+                accountant.limit_bytes += byte_size;
+                byte_size = 0;
+            }
+        }
+
+        void set_desired_size(size_t desired_byte_size)
+        {
+            release();
+            auto&            accountant = system_memory::singleton();
+            std::unique_lock lock(accountant.sys_memory_mutex);
+            byte_size = std::min(desired_byte_size, accountant.limit_bytes);
+            accountant.limit_bytes -= byte_size;
+        }
+
+        size_t size() const
+        {
+            return byte_size;
+        }
+
+        ~nonowned_reservation_t()
+        {
+            release();
+        }
+
+        void swap(nonowned_reservation_t& other)
+        {
+            std::swap(byte_size, other.byte_size);
+        }
+
+    private:
+        size_t byte_size;
+    };
+
 private:
     const size_t total_bytes;
     size_t       free_bytes;

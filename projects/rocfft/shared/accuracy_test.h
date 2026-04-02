@@ -134,14 +134,16 @@ struct reference_fft_data_t
                 std::cout << "CPU params:\n";
                 std::cout << params.str("\n\t") << std::endl;
             }
-
             return;
         }
+        if(verbose > 2)
+            std::cout << "Clearing cached reference FFT results" << std::endl;
         // cache is no longer useful, clear it and compute new one
         cached_data.clear();
         // alloc I/O buffers and create FFTW plan
         params = ref_params;
         assert(ref_params.placement == fft_placement_notinplace);
+        reserve_sys_mem_for_fftw_workspace();
         cpu_input
             = allocate_cpu_fft_buffer(ref_params.precision, ref_params.itype, ref_params.isize);
         cpu_output
@@ -345,6 +347,13 @@ struct reference_fft_data_t
         {
             cached_data.swap(*this);
         }
+        if(verbose > 3 && reservation_for_fftw_internal_alloc.size() > 0)
+        {
+            std::cout << "Releasing temporary reservation of "
+                      << byte_size_to_str(reservation_for_fftw_internal_alloc.size())
+                      << " of system memory (estimated FFTW plan's possible internal workspace)."
+                      << std::endl;
+        }
     }
     static reference_fft_data_t make_default()
     {
@@ -356,7 +365,7 @@ struct reference_fft_data_t
     {
         if(!input_is_set.valid())
             throw std::logic_error("Asynchronous computation of reference FFT results mustn't be "
-                                   "launche before having set the reference input data");
+                                   "launched before having set the reference input data");
         output_is_set = std::async(std::launch::async, [&]() {
             input_is_set.get();
             switch(params.precision)
@@ -379,6 +388,15 @@ struct reference_fft_data_t
             default:
                 throw std::logic_error("Unexpected precision for the CPU plan");
             }
+            if(verbose > 3 && reservation_for_fftw_internal_alloc.size() > 0)
+            {
+                std::cout
+                    << "Releasing temporary reservation of "
+                    << byte_size_to_str(reservation_for_fftw_internal_alloc.size())
+                    << " of system memory (estimated FFTW plan's possible internal workspace)."
+                    << std::endl;
+            }
+            reservation_for_fftw_internal_alloc.release();
         });
     }
 
@@ -477,6 +495,8 @@ private:
         params = fft_params{};
         invalidate_io_data(fft_io::fft_io_in);
         invalidate_io_data(fft_io::fft_io_out);
+        reservation_for_fftw_internal_alloc.release();
+        cpu_plan.free();
     }
 
     void swap(reference_fft_data_t& other)
@@ -492,6 +512,7 @@ private:
         cpu_output.swap(other.cpu_output);
         std::swap(params, other.params);
         std::swap(cpu_plan, other.cpu_plan);
+        reservation_for_fftw_internal_alloc.swap(other.reservation_for_fftw_internal_alloc);
     }
 
     void async_narrow_precision(fft_precision narrower_prec)
@@ -541,6 +562,45 @@ private:
                 "Unexpected precision given to narrow reference FFT results");
         }
         params.precision = narrower_prec;
+    }
+
+    // Use a conservative estimate for the size of the workspace that the
+    // fftw plan may need to guard against OOM kills: twice the maximum size
+    // of I/O; five times if any length involves a prime factor above 13.
+    void reserve_sys_mem_for_fftw_workspace()
+    {
+        const auto compute_prec
+            = params.precision == fft_precision_half ? fft_precision_single : params.precision;
+        auto estimated_bytes_for_fftw_workspace
+            = 2
+              * std::max(
+                  compute_ptrdiff(params.ilength(), params.istride, params.nbatch, params.idist)
+                      * var_size<size_t>(compute_prec, params.itype),
+                  compute_ptrdiff(params.olength(), params.ostride, params.nbatch, params.odist)
+                      * var_size<size_t>(compute_prec, params.otype));
+        for(const auto& len : params.length)
+        {
+            if(len > 13 && max_prime_factor(len) > 13)
+            {
+                estimated_bytes_for_fftw_workspace /= 2;
+                estimated_bytes_for_fftw_workspace *= 5;
+                break;
+            }
+        }
+        reservation_for_fftw_internal_alloc.set_desired_size(estimated_bytes_for_fftw_workspace);
+        if(verbose > 3)
+        {
+            const auto reserved_sz = reservation_for_fftw_internal_alloc.size();
+            std::cout << "Blocked " << byte_size_to_str(reserved_sz)
+                      << " of system memory (temporarily) for estimated fftw plan's possible "
+                         "internal workspace."
+                      << std::endl;
+            if(reserved_sz < estimated_bytes_for_fftw_workspace)
+            {
+                std::cout << "Note: desired reservation size was "
+                          << byte_size_to_str(estimated_bytes_for_fftw_workspace) << std::endl;
+            }
+        }
     }
 
     struct cpu_plan_t
@@ -618,8 +678,9 @@ private:
     std::shared_future<void> input_is_set;
     std::shared_future<void> output_is_set;
     // FFTW input/output
-    std::vector<hostbuf> cpu_input, cpu_output;
-    cpu_plan_t           cpu_plan;
+    std::vector<hostbuf>                  cpu_input, cpu_output;
+    cpu_plan_t                            cpu_plan;
+    system_memory::nonowned_reservation_t reservation_for_fftw_internal_alloc;
 
     // Private default constructor. (only needed for definition of static cache)
     reference_fft_data_t() = default;
