@@ -146,23 +146,20 @@ namespace GEMMDriverTest
 
             auto command = std::make_shared<Command>();
 
-            std::vector<size_t> oneStridesN
+            // First dimension is always fastest (stride 1)
+            std::vector<size_t> unitStrides
                 = gemm.literalStrides ? std::vector<size_t>({(size_t)1}) : std::vector<size_t>({});
 
-            std::vector<size_t> oneStridesT = gemm.literalStrides
-                                                  ? std::vector<size_t>({(size_t)0, (size_t)1})
-                                                  : std::vector<size_t>({});
-
             auto tagTensorA = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataType, {}, gemm.transA == "N" ? oneStridesN : oneStridesT)); // A
+                2, dataType, {}, unitStrides)); // A
             auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorA));
 
             auto tagTensorB = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataType, {}, gemm.transB == "N" ? oneStridesN : oneStridesT)); // B
+                2, dataType, {}, unitStrides)); // B
             auto tagLoadB = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorB));
 
             auto tagTensorC = command->addOperation(
-                rocRoller::Operations::Tensor(2, dataType, {}, oneStridesN)); // C
+                rocRoller::Operations::Tensor(2, dataType, {}, unitStrides)); // C
             auto tagLoadC = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorC));
 
             auto tagScalarAlpha
@@ -221,7 +218,7 @@ namespace GEMMDriverTest
             command->addOperation(std::move(execute));
 
             auto tagTensorRelu = command->addOperation(
-                rocRoller::Operations::Tensor(2, dataType, {}, oneStridesN)); // E
+                rocRoller::Operations::Tensor(2, dataType, {}, unitStrides)); // E
             command->addOperation(rocRoller::Operations::T_Store_Tiled(tagRelu, tagTensorRelu));
 
             Operations::OperationTag tagScratch[static_cast<int>(Operations::ScratchPolicy::Count)];

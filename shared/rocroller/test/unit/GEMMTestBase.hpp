@@ -268,8 +268,8 @@ namespace GEMMTests
             }
 
             // Pre-tile A on the host when pretileA is set (kernel expects pre-tiled layout).
-            // pretileA is only supported for transA == "T"; A is stored in memory as KxM, so we
-            // pass (K, M) and (tileK, tileM) to preSwizzle to match the client (gemm.cpp).
+            // pretileA is only supported for transA == "T"; descA is fastest-first {K, M}.
+            // preSwizzle expects fastest-first sizes; pretileA is in logical MxK order, so swap.
             std::vector<PackedTypeA> hostAForKernel(hostA);
             if(!gemm.pretileA.empty() && gemm.pretileA.size() == 2)
             {
@@ -287,7 +287,8 @@ namespace GEMMTests
                             ShowValue(preTileSize[1]));
                 if(packing > 1)
                 {
-                    AssertFatal(sizes[1] % packing == 0,
+                    // Packing is along the first (fast) dimension for A (K).
+                    AssertFatal(sizes[0] % packing == 0,
                                 "pretileA: K dimension must be a multiple of packing factor (",
                                 packing,
                                 ") for packed type A.");
@@ -295,14 +296,13 @@ namespace GEMMTests
                                 "pretileA: tile K must be a multiple of packing factor (",
                                 packing,
                                 ") for packed type A.");
-                    sizes[1] /= packing;
+                    sizes[0] /= packing;
                     preTileSize[1] /= packing;
                 }
 
-                // The preSwizzle helper assumes column-major; so we swap sizes here.
-                std::vector<size_t> swappedSizes       = {sizes[1], sizes[0]};
+                // preTileSize is in logical MxK order; swap to fastest-first {K_tile, M_tile}.
                 std::vector<size_t> swappedPreTileSize = {preTileSize[1], preTileSize[0]};
-                hostAForKernel = DGen::preSwizzle(hostA, swappedSizes, {}, swappedPreTileSize);
+                hostAForKernel = DGen::preSwizzle(hostA, sizes, {}, swappedPreTileSize);
             }
 
             // Pre-tile B on the host when pretileB is set (kernel expects pre-tiled layout)
@@ -349,12 +349,9 @@ namespace GEMMTests
                 if((gemm.scaleSkipPermlane == ScaleSkipPermlaneMode::PreSwizzleScale)
                    || (!gemm.scalePretileA.empty()))
                 {
-                    auto descScaleA = descA.withNormalizedDimensions();
-                    {
-                        auto scaleSizes = descScaleA.sizes();
-                        scaleSizes[0] /= gemm.scaleBlockSize;
-                        descScaleA = TensorDescriptor(descScaleA.dataType(), std::move(scaleSizes));
-                    }
+                    auto scaleSizes = descA.sizes();
+                    scaleSizes[0] /= gemm.scaleBlockSize;
+                    auto descScaleA = TensorDescriptor(descA.dataType(), std::move(scaleSizes));
                     std::vector<size_t> preSwizzleSize;
                     if(gemm.scaleSkipPermlane == ScaleSkipPermlaneMode::PreSwizzleScale)
                     {
@@ -382,12 +379,9 @@ namespace GEMMTests
                 if((gemm.scaleSkipPermlane == ScaleSkipPermlaneMode::PreSwizzleScale)
                    || (!gemm.scalePretileB.empty()))
                 {
-                    auto descScaleB = descB.withNormalizedDimensions();
-                    {
-                        auto scaleSizes = descScaleB.sizes();
-                        scaleSizes[0] /= gemm.scaleBlockSize;
-                        descScaleB = TensorDescriptor(descScaleB.dataType(), std::move(scaleSizes));
-                    }
+                    auto scaleSizes = descB.sizes();
+                    scaleSizes[0] /= gemm.scaleBlockSize;
+                    auto descScaleB = TensorDescriptor(descB.dataType(), std::move(scaleSizes));
                     std::vector<size_t> preSwizzleSize;
                     if(gemm.scaleSkipPermlane == ScaleSkipPermlaneMode::PreSwizzleScale)
                     {
@@ -420,16 +414,12 @@ namespace GEMMTests
 
             auto command = std::make_shared<Command>();
 
-            std::vector<size_t> oneStridesN
+            // First dimension is always fastest (stride 1)
+            std::vector<size_t> unitStrides
                 = gemm.literalStrides ? std::vector<size_t>({(size_t)1}) : std::vector<size_t>({});
 
-            std::vector<size_t> oneStridesT = gemm.literalStrides
-                                                  ? std::vector<size_t>({(size_t)0, (size_t)1})
-                                                  : std::vector<size_t>({});
-
-            auto stridesA   = gemm.transA == "N" ? oneStridesN : oneStridesT;
             auto tagTensorA = command->addOperation(
-                rocRoller::Operations::Tensor(2, dataTypeA, {}, stridesA)); // A
+                rocRoller::Operations::Tensor(2, dataTypeA, {}, unitStrides)); // A
             auto loadInputA = tagTensorA;
             if(not gemm.pretileA.empty())
             {
@@ -442,9 +432,8 @@ namespace GEMMTests
             }
             auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(loadInputA));
 
-            auto stridesB   = gemm.transB == "N" ? oneStridesN : oneStridesT;
             auto tagTensorB = command->addOperation(
-                rocRoller::Operations::Tensor(2, dataTypeB, {}, stridesB)); // B
+                rocRoller::Operations::Tensor(2, dataTypeB, {}, unitStrides)); // B
             auto loadInputB = tagTensorB;
             if(not gemm.pretileB.empty())
             {
@@ -467,7 +456,7 @@ namespace GEMMTests
             {
                 bool scalePreTiledA  = !gemm.scalePretileA.empty();
                 tagTensorScaleA      = command->addOperation(rocRoller::Operations::Tensor(
-                    2, gemm.scaleTypeA, {}, gemm.transA == "N" ? oneStridesN : oneStridesT));
+                    2, gemm.scaleTypeA, {}, unitStrides));
                 auto scaleLoadInputA = *tagTensorScaleA;
                 if(scalePreTiledA)
                 {
@@ -506,7 +495,7 @@ namespace GEMMTests
             {
                 bool scalePreTiledB  = !gemm.scalePretileB.empty();
                 tagTensorScaleB      = command->addOperation(rocRoller::Operations::Tensor(
-                    2, gemm.scaleTypeB, {}, gemm.transB == "N" ? oneStridesN : oneStridesT));
+                    2, gemm.scaleTypeB, {}, unitStrides));
                 auto scaleLoadInputB = *tagTensorScaleB;
                 if(scalePreTiledB)
                 {
@@ -542,7 +531,7 @@ namespace GEMMTests
             }
 
             auto tagTensorC = command->addOperation(
-                rocRoller::Operations::Tensor(2, dataTypeC, {}, oneStridesN)); // C
+                rocRoller::Operations::Tensor(2, dataTypeC, {}, unitStrides)); // C
             auto tagLoadC = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorC));
 
             auto tagScalarAlpha
@@ -590,7 +579,7 @@ namespace GEMMTests
             command->addOperation(std::make_shared<rocRoller::Operations::Operation>(execute));
 
             auto tagTensorD = command->addOperation(
-                rocRoller::Operations::Tensor(2, dataTypeD, {}, oneStridesN)); // D
+                rocRoller::Operations::Tensor(2, dataTypeD, {}, unitStrides)); // D
             Operations::OperationTag tagScalarSeed;
             if constexpr(std::is_same_v<TC, TD>)
             {

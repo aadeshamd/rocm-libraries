@@ -206,15 +206,12 @@ namespace rocRollerTest::Graphs
     {
         m_command = std::make_shared<rocRoller::Command>();
 
-        std::vector<size_t> oneStridesN
+        // First dimension is always fastest (stride 1)
+        std::vector<size_t> unitStrides
             = m_problem.literalStrides ? std::vector<size_t>({(size_t)1}) : std::vector<size_t>({});
 
-        std::vector<size_t> oneStridesT = m_problem.literalStrides
-                                              ? std::vector<size_t>({(size_t)0, (size_t)1})
-                                              : std::vector<size_t>({});
-
         m_tagTensorA = m_command->addOperation(rocRoller::Operations::Tensor(
-            2, m_ta, {}, m_problem.transA == "N" ? oneStridesN : oneStridesT)); // A
+            2, m_ta, {}, unitStrides)); // A
         m_tagA       = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorA));
         auto tagA    = m_tagA;
 
@@ -229,7 +226,7 @@ namespace rocRollerTest::Graphs
         }
 
         m_tagTensorB = m_command->addOperation(rocRoller::Operations::Tensor(
-            2, m_tb, {}, m_problem.transB == "N" ? oneStridesN : oneStridesT)); // B
+            2, m_tb, {}, unitStrides)); // B
         m_tagB       = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorB));
         auto tagB    = m_tagB;
 
@@ -244,7 +241,7 @@ namespace rocRollerTest::Graphs
         }
 
         m_tagTensorC
-            = m_command->addOperation(rocRoller::Operations::Tensor(2, m_tc, {}, oneStridesN)); // C
+            = m_command->addOperation(rocRoller::Operations::Tensor(2, m_tc, {}, unitStrides)); // C
         m_tagC = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorC));
 
         m_tagScalarAlpha
@@ -290,7 +287,7 @@ namespace rocRollerTest::Graphs
         m_command->addOperation(std::move(execute));
 
         m_tagTensorD
-            = m_command->addOperation(rocRoller::Operations::Tensor(2, m_td, {}, oneStridesN)); // D
+            = m_command->addOperation(rocRoller::Operations::Tensor(2, m_td, {}, unitStrides)); // D
         m_command->addOperation(rocRoller::Operations::T_Store_Tiled(m_tagD, m_tagTensorD)); // D
 
         if(m_problem.streamK)
