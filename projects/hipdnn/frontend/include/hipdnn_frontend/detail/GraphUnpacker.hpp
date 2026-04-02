@@ -20,6 +20,7 @@
 #include <hipdnn_frontend/attributes/MatmulAttributes.hpp>
 #include <hipdnn_frontend/attributes/PointwiseAttributes.hpp>
 #include <hipdnn_frontend/attributes/RMSNormAttributes.hpp>
+#include <hipdnn_frontend/attributes/RMSNormBackwardAttributes.hpp>
 #include <hipdnn_frontend/attributes/SdpaAttributes.hpp>
 #include <hipdnn_frontend/attributes/SdpaBackwardAttributes.hpp>
 #include <hipdnn_frontend/attributes/TensorAttributes.hpp>
@@ -41,6 +42,7 @@
 #include <hipdnn_frontend/node/MatmulNode.hpp>
 #include <hipdnn_frontend/node/Node.hpp>
 #include <hipdnn_frontend/node/PointwiseNode.hpp>
+#include <hipdnn_frontend/node/RMSNormBackwardNode.hpp>
 #include <hipdnn_frontend/node/RMSNormNode.hpp>
 #include <hipdnn_frontend/node/ReductionNode.hpp>
 #include <hipdnn_frontend/node/SdpaBpropNode.hpp>
@@ -274,6 +276,19 @@ void unpackNodeFromFlatBuffer(
                 attr.set_compute_data_type(fromSdkType(fbNode->compute_data_type()));
                 outNodes.emplace_back(
                     std::make_shared<graph::ReductionNode>(std::move(attr), outGraphAttrs));
+                break;
+            }
+            case hipdnn_data_sdk::data_objects::NodeAttributes::RMSNormBackwardAttributes:
+            {
+                auto attr = graph::RMSNormBackwardAttributes::fromFlatBuffer(
+                    fbNode->attributes_as_RMSNormBackwardAttributes(), tensorMap);
+                if(fbNode->name() != nullptr)
+                {
+                    attr.set_name(fbNode->name()->str());
+                }
+                attr.set_compute_data_type(fromSdkType(fbNode->compute_data_type()));
+                outNodes.emplace_back(
+                    std::make_shared<graph::RMSNormBackwardNode>(std::move(attr), outGraphAttrs));
                 break;
             }
             default:
