@@ -125,10 +125,17 @@ function(build_individual_gemm_targets datatype layout)
         set(config_filename "$ENV{GEMM_STREAMK_CONFIG_FILE}")
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${config_filename}")
         message(VERBOSE "  Using config from environment variable: ${config_filename}")
+<<<<<<< HEAD
     elseif(NOT "${GEMM_STREAMK_CONFIG_FILE}" STREQUAL "")
         # Use CMake variable if set
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_STREAMK_CONFIG_FILE}")
         message(VERBOSE "  Using custom config: ${GEMM_STREAMK_CONFIG_FILE}")
+=======
+    elseif(NOT "${GEMM_CONFIG_FILE}" STREQUAL "")
+        # Use CMake variable if set
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/${GEMM_CONFIG_FILE}")
+        message(VERBOSE "  Using custom config: ${GEMM_CONFIG_FILE}")
+>>>>>>> 54e7ccdfd3c ([CK][CK_Tile] Ensure tile engine targets are excluded from all.)
     else()
         # Use default config for all layouts
         set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_config.json")
