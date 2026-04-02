@@ -44,20 +44,27 @@ void RocRollerGemmKernel::setPredicates()
     auto zero = literal(0u);
 
     // predicates
+    // Dimension indices depend on transpose state (physical fastest-first ordering):
+    // non-transposed A: dims {M, K}, M at 0, K at 1
+    // transposed A:     dims {K, M}, K at 0, M at 1
+    auto mIdxA = params->kernelType.transA ? 1u : 0u;
+    auto kIdxA = params->kernelType.transA ? 0u : 1u;
+    auto nIdxB = params->kernelType.transB ? 0u : 1u;
+
     std::stringstream ss;
-    auto              unrollXPredicate = (aSizeExps[0] % workgroupTileMExp == zero);
+    auto              unrollXPredicate = (aSizeExps[mIdxA] % workgroupTileMExp == zero);
     ss << "M must be a multiple of workgroupTile.m=" << params->workgroupTile.m;
     rocRoller::Expression::setComment(unrollXPredicate, ss.str());
     commandKernel->addPredicate(unrollXPredicate);
     ss.str("");
 
-    auto unrollYPredicate = (bSizeExps[1] % workgroupTileNExp == zero);
+    auto unrollYPredicate = (bSizeExps[nIdxB] % workgroupTileNExp == zero);
     ss << "N must be a multiple of workgroupTile.n=" << params->workgroupTile.n;
     rocRoller::Expression::setComment(unrollYPredicate, ss.str());
     commandKernel->addPredicate(unrollYPredicate);
     ss.str("");
 
-    auto unrollKPredicate = (aSizeExps[1] % workgroupTileKExp == zero);
+    auto unrollKPredicate = (aSizeExps[kIdxA] % workgroupTileKExp == zero);
     ss << "K must be a multiple of workgroupTile.k=" << params->workgroupTile.k;
     rocRoller::Expression::setComment(unrollKPredicate, ss.str());
     commandKernel->addPredicate(unrollKPredicate);
@@ -169,11 +176,11 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
 
     auto command = std::make_shared<Command>();
 
-    std::vector<size_t> oneStridesN = std::vector<size_t>({(size_t)1});
-    std::vector<size_t> oneStridesT = std::vector<size_t>({(size_t)0, (size_t)1});
+    // With physical fastest-first ordering, dim 0 always has stride 1
+    std::vector<size_t> unitStrides = std::vector<size_t>({(size_t)1});
 
     auto tagTensorA = command->addOperation(rocRoller::Operations::Tensor(
-        2, dataTypeA, {}, gemm->kernelType.transA ? oneStridesT : oneStridesN));
+        2, dataTypeA, {}, unitStrides));
 
     auto loadInputA = tagTensorA;
 
@@ -186,7 +193,7 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
     auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(loadInputA));
 
     auto tagTensorB = command->addOperation(rocRoller::Operations::Tensor(
-        2, dataTypeB, {}, gemm->kernelType.transB ? oneStridesT : oneStridesN));
+        2, dataTypeB, {}, unitStrides));
 
     auto loadInputB = tagTensorB;
 
@@ -222,7 +229,7 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
             rocRoller::Operations::Tensor(2,
                                           gemm->kernelType.scaleTypeA.type,
                                           {},
-                                          gemm->kernelType.transA ? oneStridesT : oneStridesN));
+                                          unitStrides));
         Operations::OperationTag loadScaleInputA = *tagTensorScaleA;
         if(gemm->kernelType.scaleTypeA.preTile.size() == 2)
         {
@@ -275,7 +282,7 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
             rocRoller::Operations::Tensor(2,
                                           gemm->kernelType.scaleTypeB.type,
                                           {},
-                                          gemm->kernelType.transB ? oneStridesT : oneStridesN));
+                                          unitStrides));
         Operations::OperationTag loadScaleInputB = *tagTensorScaleB;
         if(gemm->kernelType.scaleTypeB.preTile.size() == 2)
         {
@@ -320,7 +327,7 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
     }
 
     auto tagTensorC
-        = command->addOperation(rocRoller::Operations::Tensor(2, dataTypeC, {}, oneStridesN)); // C
+        = command->addOperation(rocRoller::Operations::Tensor(2, dataTypeC, {}, unitStrides)); // C
     auto tagLoadC = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorC));
 
     auto tagScalarAlpha
@@ -331,7 +338,25 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
         = command->addOperation(rocRoller::Operations::Scalar(DataType::Float)); // beta
     auto tagLoadBeta = command->addOperation(rocRoller::Operations::T_Load_Scalar(tagScalarBeta));
 
-    auto tagAB = command->addOperation(rocRoller::Operations::T_Mul(mulInputA, mulInputB)); // A * B
+    // Explicit free/bound indices for physical dimension ordering
+    Operations::FreeIndex  freeDimsA, freeDimsB;
+    Operations::BoundIndex boundDims;
+    freeDimsA.ab = freeDimsA.d = 0;
+    freeDimsB.ab = freeDimsB.d = 1;
+    boundDims.a                = 1;
+    boundDims.b                = 0;
+    if(gemm->kernelType.transA)
+        std::swap(freeDimsA.ab, boundDims.a);
+    if(gemm->kernelType.transB)
+        std::swap(freeDimsB.ab, boundDims.b);
+
+    auto tagAB = command->addOperation(rocRoller::Operations::T_Mul(
+        mulInputA,
+        mulInputB,
+        {freeDimsA},
+        {freeDimsB},
+        {boundDims},
+        gemm->kernelType.typeAcc)); // A * B
 
     rocRoller::Operations::T_Execute execute(command->getNextTag());
     auto tagBetaC = execute.addXOp(rocRoller::Operations::E_Mul(tagLoadBeta, tagLoadC)); // beta * C
@@ -354,7 +379,7 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
     command->addOperation(std::make_shared<rocRoller::Operations::Operation>(execute));
 
     auto tagTensorD
-        = command->addOperation(rocRoller::Operations::Tensor(2, dataTypeD, {}, oneStridesN)); // D
+        = command->addOperation(rocRoller::Operations::Tensor(2, dataTypeD, {}, unitStrides)); // D
     Operations::OperationTag tagScalarSeed;
     if(gemm->kernelType.typeAcc == gemm->kernelType.typeD)
     {
@@ -678,10 +703,14 @@ CommandArguments RocRollerGemmKernel::createCommandArguments(const RocblasltCont
     size_t N = prob.n;
     size_t K = prob.k;
 
-    TensorDescriptor descA(
-        params->kernelType.typeA, {M, K}, params->kernelType.transA ? "T" : "N");
-    TensorDescriptor descB(
-        params->kernelType.typeB, {K, N}, params->kernelType.transB ? "T" : "N");
+    std::vector<size_t> aSizes{M, K};
+    std::vector<size_t> bSizes{K, N};
+    if(params->kernelType.transA)
+        std::swap(aSizes[0], aSizes[1]);
+    if(params->kernelType.transB)
+        std::swap(bSizes[0], bSizes[1]);
+    TensorDescriptor descA(params->kernelType.typeA, aSizes);
+    TensorDescriptor descB(params->kernelType.typeB, bSizes);
 
     // TODO: Have to typecast void* pointer to something that CommandArgumentValue accepts
     setCommandTensorArg(commandArgs, tagTensorA, descA, (float*)nullptr);
@@ -691,30 +720,30 @@ CommandArguments RocRollerGemmKernel::createCommandArguments(const RocblasltCont
     {
         auto const scaleBlockSize = params->kernelType.scaleTypeA.blockRowSize
                                     * params->kernelType.scaleTypeA.blockColSize;
-        TensorDescriptor descAScale(
-            params->kernelType.scaleTypeA.type,
-            {size_t(M), size_t(K / scaleBlockSize)},
-            params->kernelType.transA ? "T" : "N");
+        std::vector<size_t> aScaleSizes{size_t(M), size_t(K / scaleBlockSize)};
+        if(params->kernelType.transA)
+            std::swap(aScaleSizes[0], aScaleSizes[1]);
+        TensorDescriptor descAScale(params->kernelType.scaleTypeA.type, aScaleSizes);
         setCommandTensorArg(commandArgs, tagTensorScaleA, descAScale, (float*)nullptr);
     }
     if(params->kernelType.scaleTypeB.mode == Operations::ScaleMode::Separate)
     {
         auto const scaleBlockSize = params->kernelType.scaleTypeB.blockRowSize
                                     * params->kernelType.scaleTypeB.blockColSize;
-        TensorDescriptor descBScale(
-            params->kernelType.scaleTypeB.type,
-            {size_t(K / scaleBlockSize), size_t(N)},
-            params->kernelType.transB ? "T" : "N");
+        std::vector<size_t> bScaleSizes{size_t(K / scaleBlockSize), size_t(N)};
+        if(params->kernelType.transB)
+            std::swap(bScaleSizes[0], bScaleSizes[1]);
+        TensorDescriptor descBScale(params->kernelType.scaleTypeB.type, bScaleSizes);
         setCommandTensorArg(commandArgs, tagTensorScaleB, descBScale, (float*)nullptr);
     }
 
-    TensorDescriptor descC(params->kernelType.typeC, {M, N}, "N");
+    TensorDescriptor descC(params->kernelType.typeC, {M, N});
     setCommandTensorArg(commandArgs, tagTensorC, descC, (float*)nullptr);
 
     commandArgs.setArgument(tagScalarAlpha, ArgumentType::Value, *((float*)prob.alpha));
     commandArgs.setArgument(tagScalarBeta, ArgumentType::Value, *((float*)prob.beta));
 
-    TensorDescriptor descD(params->kernelType.typeD, {M, N}, "N");
+    TensorDescriptor descD(params->kernelType.typeD, {M, N});
     setCommandTensorArg(commandArgs, tagTensorD, descD, (float*)nullptr);
 
     commandArgs.setArgument(tagTensorA, ArgumentType::Value, (float*)prob.A);
