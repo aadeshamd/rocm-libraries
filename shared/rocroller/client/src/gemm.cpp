@@ -286,13 +286,9 @@ namespace rocRoller::Client::GEMMClient
             if((problemParams.types.scaleSkipPermlane != ScaleSkipPermlaneMode::None)
                || (not problemParams.types.scalePretileA.empty()))
             {
-                // TODO: Normalize not needed anymore
-                auto descScaleA = descA.withNormalizedDimensions();
-                {
-                    auto sizes = descScaleA.sizes();
-                    sizes[0] /= problemParams.types.scaleBlockSize;
-                    descScaleA = TensorDescriptor(descScaleA.dataType(), std::move(sizes));
-                }
+                auto sizes = descA.sizes();
+                sizes[0] /= problemParams.types.scaleBlockSize;
+                auto descScaleA = TensorDescriptor(descA.dataType(), std::move(sizes));
 
                 std::vector<size_t> preSwizzleSize;
                 if(problemParams.types.scaleSkipPermlane != ScaleSkipPermlaneMode::None)
@@ -307,11 +303,9 @@ namespace rocRoller::Client::GEMMClient
                     AssertFatal(problemParams.types.transA == TransposeType::T,
                                 "Can only pre-tile A if it is TransposeType::T");
 
-                    // Note, scalePretileA is M x K (usually something like 256 x 8)
-                    //
-                    // Because we used "withNormalizedDimensions"
-                    // above and A is T, the K dimension becomes the
-                    // leftmost dimension
+                    // scalePretileA is in logical M x K order (e.g. 256 x 8).
+                    // descScaleA is in fastest-first order: {K, M} for transposed A.
+                    // Swap to match physical layout.
                     preTileSize = {problemParams.types.scalePretileA[1],
                                    problemParams.types.scalePretileA[0]};
                 }
@@ -337,13 +331,9 @@ namespace rocRoller::Client::GEMMClient
             if((problemParams.types.scaleSkipPermlane != ScaleSkipPermlaneMode::None)
                || (not problemParams.types.scalePretileB.empty()))
             {
-                // TODO: Normalize not needed anymore
-                auto descScaleB = descB.withNormalizedDimensions();
-                {
-                    auto sizes = descScaleB.sizes();
-                    sizes[0] /= problemParams.types.scaleBlockSize;
-                    descScaleB = TensorDescriptor(descScaleB.dataType(), std::move(sizes));
-                }
+                auto sizes = descB.sizes();
+                sizes[0] /= problemParams.types.scaleBlockSize;
+                auto descScaleB = TensorDescriptor(descB.dataType(), std::move(sizes));
 
                 std::vector<size_t> preSwizzleSize;
                 if(problemParams.types.scaleSkipPermlane != ScaleSkipPermlaneMode::None)
@@ -355,11 +345,9 @@ namespace rocRoller::Client::GEMMClient
                 std::vector<size_t> preTileSize;
                 if(not problemParams.types.scalePretileB.empty())
                 {
-                    // Note scalePretileB is K x N (usually something like 8 x 256)
-                    //
-                    // Because we used "withNormalizedDimensions"
-                    // above, and B is N, the K dimension stays as the
-                    // leftmost dimension.
+                    // scalePretileB is in logical K x N order (e.g. 8 x 256).
+                    // descScaleB is in fastest-first order: {K, N} for non-transposed B.
+                    // No swap needed — already matches physical layout.
                     AssertFatal(problemParams.types.transB == TransposeType::N,
                                 "Can only pre-tile B if it is TransposeType::N");
 

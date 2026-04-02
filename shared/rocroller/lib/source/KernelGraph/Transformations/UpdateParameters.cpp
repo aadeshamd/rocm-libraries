@@ -568,7 +568,6 @@ namespace rocRoller
 
                     auto user = maybeUser.value();
                     user.size = subDim->stride * subDim->size;
-                    ;
                     m_graph.coordinates.setElement(userTag, user);
 
                     Log::debug("SetUserSizeVisitor: Set User {}.size to {} for Linear {}",

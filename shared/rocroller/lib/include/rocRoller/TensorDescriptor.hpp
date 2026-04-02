@@ -80,13 +80,6 @@ namespace rocRoller
                          std::vector<size_t> strides,
                          size_t              offset = 0);
 
-        /**
-         * Specialized constructor for 2-D tensor (i.e., matrix)
-         */
-        TensorDescriptor(DataType              t,
-                         std::array<size_t, 2> sizes,
-                         std::string const&    transpose,
-                         size_t                offset = 0);
 
         static TensorDescriptor
             ShuffledNoPadding(DataType t, std::vector<size_t> sizes, std::vector<size_t> dimOrder);
