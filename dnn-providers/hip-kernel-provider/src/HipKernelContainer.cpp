@@ -32,8 +32,8 @@ const std::vector<HipKernelContainer::EngineDefinition>& HipKernelContainer::get
                  std::make_unique<BatchnormPlanBuilder>(kernelCompiler, devicePropertyProvider));
              engine->addPlanBuilder(std::make_unique<rmsnorm::RMSnormPlanBuilder>(
                  kernelCompiler, devicePropertyProvider));
-             engine->addPlanBuilder(
-                 std::make_unique<RMSnormBwdPlanBuilder>(kernelCompiler, devicePropertyProvider));
+             engine->addPlanBuilder(std::make_unique<rmsnorm::RMSnormBwdPlanBuilder>(
+                 kernelCompiler, devicePropertyProvider));
              return engine;
          }}};
 
