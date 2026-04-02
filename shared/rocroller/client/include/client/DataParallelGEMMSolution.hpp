@@ -234,8 +234,8 @@ namespace rocRoller
                                 m_tagB,
                                 2,
                                 scaleInputB,
-                                {static_cast<unsigned long>(solutionParams.types.scaleBlockSize),
-                                 1}));
+                                {1,
+                                 static_cast<unsigned long>(solutionParams.types.scaleBlockSize)}));
                     }
                     else if(solutionParams.types.scaleB == Operations::ScaleMode::SingleScale)
                     {

@@ -269,11 +269,10 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
                 *tagLoadScaleA, gemm->kernelType.scaleTypeA.preSwizzleTile));
         }
 
-        tagBlockScaleA = mulInputA = command->addOperation(rocRoller::Operations::BlockScale(
-            tagLoadA,
-            2,
-            scaleInputA,
-            {gemm->kernelType.scaleTypeA.blockColSize, gemm->kernelType.scaleTypeA.blockRowSize}));
+        auto scaleBlockSizeA
+            = gemm->kernelType.scaleTypeA.blockColSize * gemm->kernelType.scaleTypeA.blockRowSize;
+        tagBlockScaleA = mulInputA = command->addOperation(
+            rocRoller::Operations::BlockScale(tagLoadA, 2, scaleInputA, {1, scaleBlockSizeA}));
     }
 
     if(gemm->kernelType.scaleTypeB.mode == Operations::ScaleMode::Separate)
@@ -319,11 +318,10 @@ std::shared_ptr<RocRollerGemmKernel> RocRollerGemmKernel::generate(std::shared_p
                 *tagLoadScaleB, gemm->kernelType.scaleTypeB.preSwizzleTile));
         }
 
-        tagBlockScaleB = mulInputB = command->addOperation(rocRoller::Operations::BlockScale(
-            tagLoadB,
-            2,
-            scaleInputB,
-            {gemm->kernelType.scaleTypeB.blockColSize, gemm->kernelType.scaleTypeB.blockRowSize}));
+        auto scaleBlockSizeB
+            = gemm->kernelType.scaleTypeB.blockColSize * gemm->kernelType.scaleTypeB.blockRowSize;
+        tagBlockScaleB = mulInputB = command->addOperation(
+            rocRoller::Operations::BlockScale(tagLoadB, 2, scaleInputB, {1, scaleBlockSizeB}));
     }
 
     auto tagTensorC
