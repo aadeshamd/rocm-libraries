@@ -28,6 +28,7 @@ For artifact compression/extraction utilities (no pytest dependency),
 see artifact_helpers.py.
 """
 
+import glob
 import os
 import subprocess
 
@@ -35,6 +36,9 @@ import pytest
 import yaml
 
 from Tensile.Common.DataType import DataType
+
+# Root of Tensile/Tests — used for stable relative path computation.
+_TESTS_ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 
 try:
     DEFAULT_YAML_LOADER = yaml.CSafeLoader
@@ -71,17 +75,19 @@ def walkDict(root, path=""):
                 keypath = path + "." + str(keypath)
             yield from walkDict(value, keypath)
     elif isinstance(root, list):
-        for i,obj in enumerate(root):
+        for i, obj in enumerate(root):
             keypath = str(i)
             if path != "":
                 keypath = path + "." + keypath
             yield from walkDict(obj, keypath)
+
 
 def markNamed(name):
     """
     Gets a mark by a name contained in a variable.
     """
     return getattr(pytest.mark, name)
+
 
 def configMarks(filepath, rootDir, availableArchs):
     """
@@ -161,15 +167,35 @@ def configMarks(filepath, rootDir, availableArchs):
 
     return marks
 
-def findAvailableArchs():
-    availableArchs = []
+
+def findAvailableArchs(gpu_targets=None):
+    """Detect available GPU architectures, or use an explicit override.
+
+    Args:
+        gpu_targets: Semicolon-separated GPU targets (e.g. "gfx942").
+            When provided, skips hardware detection entirely.
+
+    Returns:
+        List of architecture strings (e.g. ["gfx942"]).
+    """
+    if gpu_targets:
+        return [t.strip() for t in gpu_targets.split(";") if t.strip()]
+
     rocmpath = "/opt/rocm"
     if "ROCM_PATH" in os.environ:
         rocmpath = os.environ.get("ROCM_PATH")
     if "TENSILE_ROCM_PATH" in os.environ:
         rocmpath = os.environ.get("TENSILE_ROCM_PATH")
     rocmAgentEnum = os.path.join(rocmpath, "bin/rocm_agent_enumerator")
-    output = subprocess.check_output([rocmAgentEnum, "-t", "GPU"])
+
+    try:
+        output = subprocess.check_output([rocmAgentEnum, "-t", "GPU"])
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        raise RuntimeError(
+            f"GPU detection failed ({e}). Pass --gpu-targets to pytest or Tensile.py to override."
+        ) from e
+
+    availableArchs = []
     lines = output.decode().splitlines()
     for line in lines:
         line = line.strip()
@@ -177,20 +203,27 @@ def findAvailableArchs():
             availableArchs.append(line)
     return availableArchs
 
-def findConfigs(rootDir=None):
+
+def findConfigs(rootDir=None, availableArchs=None):
     """
     Walks rootDir (defaults to trying to find Tensile/Tests) and returns a
     list of test parameters, one for each YAML file.
+
+    Args:
+        rootDir: Directory to walk for YAML configs. Defaults to Tensile/Tests.
+        availableArchs: Pre-resolved list of GPU architectures.
+            When None, calls findAvailableArchs() to auto-detect.
     """
-    if rootDir ==  None:
-        rootDir = os.path.dirname(os.path.dirname(__file__))
+    if rootDir is None:
+        rootDir = _TESTS_ROOT_DIR
         printRoot = os.path.dirname(os.path.dirname(rootDir))
     else:
         printRoot = rootDir
 
-    availableArchs = findAvailableArchs()
-    globaParamArchsStr = ';'.join(availableArchs)
-    os.environ["PyTestBuildArchNames"] = globaParamArchsStr
+    if availableArchs is None:
+        availableArchs = findAvailableArchs()
+    globalParamArchsStr = ';'.join(availableArchs)
+    os.environ["PyTestBuildArchNames"] = globalParamArchsStr
 
     rocm_version = get_rocm_version_or_none()
 
@@ -211,11 +244,67 @@ def findConfigs(rootDir=None):
                 if not "test_data" in filepath:
                     marks = configMarks(filepath, rootDir, availableArchs)
 
-                    # Conditionally xfail icache_flush.yaml on rocm 7.1 due to ROCm bug.
-                    if filename == "icache_flush.yaml" and rocm_version and rocm_version.startswith("7.1"):
-                        reason = "Test is expected to fail on ROCm 7.1 due to a known bug."
-                        marks.append(pytest.mark.xfail(reason=reason, strict=True))
-
                     relpath = os.path.relpath(filepath, printRoot)
                     params.append(pytest.param(filepath, marks=marks, id=relpath))
     return params
+
+
+def disable_timer_and_hwmonitor(args):
+    """Append --global-parameters to disable BenchmarkTimer and HardwareMonitor.
+
+    Inserts the overrides after the existing --global-parameters flag if present,
+    otherwise appends it. Modifies args in place.
+    """
+    try:
+        idx = args.index("--global-parameters")
+    except ValueError:
+        args.append("--global-parameters")
+        idx = len(args) - 1
+    args.insert(idx + 1, "BenchmarkTimer=0")
+    args.insert(idx + 2, "HardwareMonitor=0")
+
+
+def _parse_ini_value(ini_path, key):
+    """Parse a key=value from a Tensile client .ini file. Returns None if not found."""
+    with open(ini_path) as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith(key + "="):
+                return line.split("=", 1)[1]
+    return None
+
+
+def verify_timer_and_hwmonitor(output_dir, expect_disabled):
+    """Verify benchmark-timer and hardware-monitor values in generated .ini files.
+
+    Args:
+        output_dir: The Tensile output directory to search for .ini files.
+        expect_disabled: If True, assert both parameters are disabled.
+            If False, assert benchmark-timer is enabled (hardware-monitor
+            is only checked for presence since some architectures like
+            gfx950 force-disable it).
+    """
+    ini_files = glob.glob(os.path.join(output_dir, "**", "*.ini"), recursive=True)
+    assert ini_files, "Expected at least one .ini file in the output directory"
+
+    # Values that indicate the feature is disabled (int 0 from CLI override,
+    # or bool False from code).
+    disabled_values = {"0", "False"}
+
+    for ini_file in ini_files:
+        bt_value = _parse_ini_value(ini_file, "benchmark-timer")
+        hm_value = _parse_ini_value(ini_file, "hardware-monitor")
+
+        assert bt_value is not None, \
+            f"benchmark-timer not found in {ini_file}"
+        assert hm_value is not None, \
+            f"hardware-monitor not found in {ini_file}"
+
+        if expect_disabled:
+            assert bt_value in disabled_values, \
+                f"Expected benchmark-timer disabled in {ini_file}, got {bt_value}"
+            assert hm_value in disabled_values, \
+                f"Expected hardware-monitor disabled in {ini_file}, got {hm_value}"
+        else:
+            assert bt_value not in disabled_values, \
+                f"Expected benchmark-timer enabled in {ini_file}, got {bt_value}"

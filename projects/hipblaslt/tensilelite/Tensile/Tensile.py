@@ -611,6 +611,7 @@ def Tensile(userArgs):
         enumerator = None  # not needed — ISA comes from --gpu-targets
     else:
         enumerator = validateToolchain(args.DeviceEnumerator)
+
     asmToolchain = makeAssemblyToolchain(
         cxxCompiler,
         offloadBundler,
