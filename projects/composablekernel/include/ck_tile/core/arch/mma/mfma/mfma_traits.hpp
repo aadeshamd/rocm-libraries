@@ -3,6 +3,22 @@
 
 #pragma once
 
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/config.hpp"
+
+#if defined(__HIP_DEVICE_COMPILE__)
+#include <hip/hip_runtime.h>
+#endif
+
+#include <cstdint>
+#include <type_traits>
+#if !defined(__HIP_DEVICE_COMPILE__)
+#include <cstdio>
+#endif
+#if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
+#include <concepts>
+#endif
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -50,10 +66,25 @@ struct DefaultMfmaCtrlFlags
     static constexpr uint32_t Cbsz = 0; // CBSZ flag, default 0
     static constexpr uint32_t Abid = 0; // ABID flag, default 0
     static constexpr uint32_t Blgp = 0; // BLGP flag, default 0
+
+    CK_TILE_HOST_DEVICE static void print()
+    {
+#if defined(__HIP_DEVICE_COMPILE__)
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+#else
+        using std::printf;
+#endif
+            printf("CtrlFlags      Cbsz             : %u\n", Cbsz);
+            printf("               Abid             : %u\n", Abid);
+            printf("               Blgp             : %u\n", Blgp);
+#if defined(__HIP_DEVICE_COMPILE__)
+        }
+#endif
+    }
 };
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
-#include <concepts>
 
 /**
  * @concept CtrlFlagsGfx9I

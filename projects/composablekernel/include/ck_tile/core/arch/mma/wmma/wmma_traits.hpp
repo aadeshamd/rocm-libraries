@@ -3,6 +3,17 @@
 
 #pragma once
 
+#include "ck_tile/core/config.hpp"
+
+#if defined(__HIP_DEVICE_COMPILE__)
+#include <hip/hip_runtime.h>
+#endif
+
+#include <type_traits>
+#if !defined(__HIP_DEVICE_COMPILE__)
+#include <cstdio>
+#endif
+
 namespace ck_tile::core::arch::mma {
 
 /**
@@ -55,6 +66,17 @@ enum struct WmmaCtrlFlags : bool
     HIGH = true,
 };
 
+// to_string methods for enum classes
+CK_TILE_HOST_DEVICE const char* to_string(WmmaCtrlFlags ctrlFlags)
+{
+    switch(ctrlFlags)
+    {
+    case WmmaCtrlFlags::LOW: return "LOW";
+    case WmmaCtrlFlags::HIGH: return "HIGH";
+    default: return "Unknown";
+    }
+}
+
 /**
  * @class DefaultWmmaFlags
  * @brief Generates default WMMA control flags based on data types.
@@ -70,6 +92,21 @@ struct DefaultWmmaCtrlFlags
     // Generate default flags for accumulator destination bits.
     // Only used if accumulation size is 16-bit in gfx11
     constexpr static WmmaCtrlFlags AccumBits = WmmaCtrlFlags::LOW;
+
+    CK_TILE_HOST_DEVICE static void print()
+    {
+#if defined(__HIP_DEVICE_COMPILE__)
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+#else
+        using std::printf;
+#endif
+            printf("CtrlFlags      Clamp            : %d\n", Clamp);
+            printf("               AccumBits        : %s\n", to_string(AccumBits));
+#if defined(__HIP_DEVICE_COMPILE__)
+        }
+#endif
+    }
 };
 
 } // namespace ck_tile::core::arch::mma

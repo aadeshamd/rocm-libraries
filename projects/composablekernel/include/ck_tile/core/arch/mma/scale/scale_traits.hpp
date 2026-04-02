@@ -4,11 +4,19 @@
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/pk_fp4.hpp"
 // #include "ck_tile/core/numeric/pk_fp6.hpp"
 
+#if defined(__HIP_DEVICE_COMPILE__)
+#include <hip/hip_runtime.h>
+#endif
+
 #include <cstdint>
+#if !defined(__HIP_DEVICE_COMPILE__)
+#include <cstdio>
+#endif
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 #include <concepts>
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
@@ -73,6 +81,21 @@ struct DefaultScaleMfmaCtrlFlags
 {
     static constexpr std::int32_t OPSEL_A = 0;
     static constexpr std::int32_t OPSEL_B = 0;
+
+    CK_TILE_HOST_DEVICE static void print()
+    {
+#if defined(__HIP_DEVICE_COMPILE__)
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+#else
+        using std::printf;
+#endif
+            printf("CtrlFlags      OPSEL_A          : %d\n", OPSEL_A);
+            printf("               OPSEL_B          : %d\n", OPSEL_B);
+#if defined(__HIP_DEVICE_COMPILE__)
+        }
+#endif
+    }
 };
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER

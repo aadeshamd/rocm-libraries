@@ -6,13 +6,20 @@
 // Address Space for AMDGCN
 // https://llvm.org/docs/AMDGPUUsage.html#address-space
 
+#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
-#include "ck_tile/core/arch/amd_buffer_addressing.hpp"
-#include "ck_tile/core/utility/ignore.hpp"
+
+#include <hip/hip_runtime.h>
+
+#include <cstdint>
+#include <string>
+#include <type_traits>
+#if !defined(__HIP_DEVICE_COMPILE__)
+#include <cstdio>
+#endif
 
 #if __has_include(<concepts>)
 #define CK_TILE_CONCEPTS_HEADER 1
@@ -107,6 +114,39 @@ enum struct amdgcn_target_id
     HOST           = 0x0000,
 };
 
+// to_string methods for enum classes
+CK_TILE_HOST_DEVICE const char* to_string(amdgcn_target_id target_id)
+{
+    switch(target_id)
+    {
+    case amdgcn_target_id::GFX908: return "GFX908";
+    case amdgcn_target_id::GFX90A: return "GFX90A";
+    case amdgcn_target_id::GFX942: return "GFX942";
+    case amdgcn_target_id::GFX950: return "GFX950";
+    case amdgcn_target_id::GFX1030: return "GFX1030";
+    case amdgcn_target_id::GFX1031: return "GFX1031";
+    case amdgcn_target_id::GFX1032: return "GFX1032";
+    case amdgcn_target_id::GFX1034: return "GFX1034";
+    case amdgcn_target_id::GFX1035: return "GFX1035";
+    case amdgcn_target_id::GFX1036: return "GFX1036";
+    case amdgcn_target_id::GFX103_GENERIC: return "GFX103_GENERIC";
+    case amdgcn_target_id::GFX1100: return "GFX1100";
+    case amdgcn_target_id::GFX1101: return "GFX1101";
+    case amdgcn_target_id::GFX1102: return "GFX1102";
+    case amdgcn_target_id::GFX1103: return "GFX1103";
+    case amdgcn_target_id::GFX1150: return "GFX1150";
+    case amdgcn_target_id::GFX1151: return "GFX1151";
+    case amdgcn_target_id::GFX1152: return "GFX1152";
+    case amdgcn_target_id::GFX1153: return "GFX1153";
+    case amdgcn_target_id::GFX11_GENERIC: return "GFX11_GENERIC";
+    case amdgcn_target_id::GFX1200: return "GFX1200";
+    case amdgcn_target_id::GFX1201: return "GFX1201";
+    case amdgcn_target_id::GFX12_GENERIC: return "GFX12_GENERIC";
+    case amdgcn_target_id::HOST: return "HOST";
+    default: return "Unknown";
+    }
+}
+
 enum struct amdgcn_target_family_id
 {
     GFX9    = 0x09,
@@ -116,6 +156,20 @@ enum struct amdgcn_target_family_id
     HOST    = 0x00,
 };
 
+// to_string methods for enum classes
+CK_TILE_HOST_DEVICE const char* to_string(amdgcn_target_family_id family_id)
+{
+    switch(family_id)
+    {
+    case amdgcn_target_family_id::GFX9: return "GFX9";
+    case amdgcn_target_family_id::GFX10_3: return "GFX10_3";
+    case amdgcn_target_family_id::GFX11: return "GFX11";
+    case amdgcn_target_family_id::GFX12: return "GFX12";
+    case amdgcn_target_family_id::HOST: return "HOST";
+    default: return "Unknown";
+    }
+}
+
 enum struct amdgcn_target_arch_id
 {
     CDNA = 0x01,
@@ -123,12 +177,48 @@ enum struct amdgcn_target_arch_id
     HOST = 0x00,
 };
 
+// to_string methods for enum classes
+CK_TILE_HOST_DEVICE const char* to_string(amdgcn_target_arch_id arch_id)
+{
+    switch(arch_id)
+    {
+    case amdgcn_target_arch_id::CDNA: return "CDNA";
+    case amdgcn_target_arch_id::RDNA: return "RDNA";
+    case amdgcn_target_arch_id::HOST: return "HOST";
+    default: return "Unknown";
+    }
+}
+
 enum struct amdgcn_target_wave_size_id
 {
     WAVE32 = 32u,
     WAVE64 = 64u,
     HOST   = 64u, // TODO: Is this correct? Should the host default to 64 or 1?
 };
+
+// to_string methods for enum classes
+template <bool host>
+CK_TILE_HOST_DEVICE const char* to_string(amdgcn_target_wave_size_id wave_size_id)
+{
+    if constexpr(host)
+    {
+        switch(wave_size_id)
+        {
+        case amdgcn_target_wave_size_id::WAVE32: return "WAVE32";
+        case amdgcn_target_wave_size_id::HOST: return "HOST";
+        default: return "Unknown";
+        }
+    }
+    else
+    {
+        switch(wave_size_id)
+        {
+        case amdgcn_target_wave_size_id::WAVE32: return "WAVE32";
+        case amdgcn_target_wave_size_id::WAVE64: return "WAVE64";
+        default: return "Unknown";
+        }
+    }
+}
 
 #if 1 //__cplusplus <= 201703L
 
@@ -142,6 +232,26 @@ struct amdgcn_target
     static constexpr amdgcn_target_family_id FAMILY_ID       = FamilyId;
     static constexpr amdgcn_target_arch_id ARCH_ID           = ArchId;
     static constexpr amdgcn_target_wave_size_id WAVE_SIZE_ID = WaveSizeId;
+
+    CK_TILE_HOST_DEVICE static void print()
+    {
+        static constexpr bool host =
+            (TargetId == amdgcn_target_id::HOST && FamilyId == amdgcn_target_family_id::HOST &&
+             ArchId == amdgcn_target_arch_id::HOST);
+#if defined(__HIP_DEVICE_COMPILE__)
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+#else
+        using std::printf;
+#endif
+            printf("CompilerTarget TARGET_ID        : %s\n", to_string(TargetId));
+            printf("               FAMILY_ID        : %s\n", to_string(FamilyId));
+            printf("               ARCH_ID          : %s\n", to_string(ArchId));
+            printf("               WAVE_SIZE_ID     : %s\n", to_string<host>(WaveSizeId));
+#if defined(__HIP_DEVICE_COMPILE__)
+        }
+#endif
+    }
 };
 
 template <amdgcn_target_id targetId>
@@ -495,6 +605,26 @@ struct amdgcn_target
     const amdgcn_target_family_id FAMILY_ID       = amdgcn_target_family_id::HOST;
     const amdgcn_target_arch_id ARCH_ID           = amdgcn_target_arch_id::HOST;
     const amdgcn_target_wave_size_id WAVE_SIZE_ID = amdgcn_target_wave_size_id::HOST;
+
+    CK_TILE_HOST_DEVICE static void print()
+    {
+        static constexpr bool host =
+            (TargetId == amdgcn_target_id::HOST && FamilyId == amdgcn_target_family_id::HOST &&
+             ArchId == amdgcn_target_arch_id::HOST);
+#if defined(__HIP_DEVICE_COMPILE__)
+        if(threadIdx.x == 0 && blockIdx.x == 0)
+        {
+#else
+        using std::printf;
+#endif
+            printf("CompilerTarget TARGET_ID        : %s\n", to_string(TargetId));
+            printf("               FAMILY_ID        : %s\n", to_string(FamilyId));
+            printf("               ARCH_ID          : %s\n", to_string(ArchId));
+            printf("               WAVE_SIZE_ID     : %s\n", to_string<host>(WaveSizeId));
+#if defined(__HIP_DEVICE_COMPILE__)
+        }
+#endif
+    }
 };
 
 static constexpr auto make_amdgcn_gfx10_3_target(amdgcn_target_id targetId)

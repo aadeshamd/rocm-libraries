@@ -2,12 +2,17 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 
-#include "ck_tile/core/arch/mma/mma_op_family.hpp"
 #include "amdgcn_mma.hpp"
 #include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/mma_op_family.hpp"
+#include "ck_tile/core/config.hpp"
 #include "mfma/mfma_traits.hpp"
-#include "wmma/wmma_traits.hpp"
+#include "scale/scale_traits.hpp"
 #include "sparse/sparse_traits.hpp"
+#include "wmma/wmma_traits.hpp"
+
+#include <cstdint>
+#include <type_traits>
 
 namespace ck_tile::core::arch::mma {
 
@@ -102,6 +107,16 @@ struct MmaOpTraits<amdgcn_mma<ADataType_,
     constexpr static bool IsScale  = OpFamily_ == MmaOpFamily::SCALE;
     constexpr static bool IsSupported =
         is_mma_op_supported_v<MmaOp> && OpFamily_ != MmaOpFamily::UNDEFINED;
+
+    CK_TILE_HOST_DEVICE static void print()
+    {
+        MmaOp::print();
+        if constexpr(!std::is_same_v<CtrlFlags_, void>)
+        {
+            CtrlFlags_::print();
+        }
+        CompilerTarget_::print();
+    }
 };
 
 } // namespace ck_tile::core::arch::mma
