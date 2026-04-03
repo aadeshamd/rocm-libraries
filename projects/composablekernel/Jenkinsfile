@@ -1188,6 +1188,7 @@ def run_pytorch_tests(Map conf=[:]){
                 """
                 sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
                 sh """cd /tmp/pytorch && \
+                    CMAKE_CXX_STANDARD=20 \
                     USE_ROCM_CK_SDPA=1 \
                     USE_ROCM_CK_GEMM=1 \
                     USE_DISTRIBUTED=0 \
