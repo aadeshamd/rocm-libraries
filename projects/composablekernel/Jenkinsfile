@@ -1110,6 +1110,15 @@ def run_aiter_tests(Map conf=[:]){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
+                // Patch CK with workspace version and rebuild aiter
+                sh """
+                    CK_SRC=\${WORKSPACE}/projects/composablekernel
+                    rm -rf /home/jenkins/workspace/ck
+                    cp -r \$CK_SRC /home/jenkins/workspace/ck
+                    rm -rf /home/jenkins/workspace/aiter/3rdparty/composable_kernel
+                    cp -r \$CK_SRC /home/jenkins/workspace/aiter/3rdparty/composable_kernel
+                    cd /home/jenkins/workspace/aiter && python3 setup.py develop
+                """
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
