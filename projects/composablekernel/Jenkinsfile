@@ -1164,6 +1164,19 @@ def run_pytorch_tests(Map conf=[:]){
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "pip install --upgrade pandas"
+                // Patch CK in PyTorch third_party with workspace version
+                sh """
+                    CK_SRC=\${WORKSPACE}/projects/composablekernel
+                    for dest in /tmp/pytorch/third_party/composable_kernel \
+                                /tmp/pytorch/third_party/aiter/3rdparty/composable_kernel \
+                                /tmp/pytorch/third_party/fbgemm/external/composable_kernel \
+                                /tmp/pytorch/third_party/flash-attention/csrc/composable_kernel; do
+                        if [ -d \$dest ]; then
+                            rm -rf \$dest
+                            cp -r \$CK_SRC \$dest
+                        fi
+                    done
+                """
                 sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
                 sh """cd /tmp/pytorch && \
                     USE_ROCM_CK_SDPA=1 \
