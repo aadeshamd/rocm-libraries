@@ -1163,6 +1163,7 @@ def run_pytorch_tests(Map conf=[:]){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
+                sh "pip install --upgrade pandas"
                 sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
                 sh """cd /tmp/pytorch && \
                     USE_ROCM_CK_SDPA=1 \
