@@ -1164,7 +1164,24 @@ def run_pytorch_tests(Map conf=[:]){
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
-                sh "USE_ROCM_CK_SDPA=1 PYTORCH_ROCM_ARCH=gfx942 python /tmp/pytorch/setup.py develop"
+                sh """cd /tmp/pytorch && \
+                    USE_ROCM_CK_SDPA=1 \
+                    USE_ROCM_CK_GEMM=1 \
+                    USE_DISTRIBUTED=0 \
+                    USE_NNPACK=0 \
+                    USE_XNNPACK=0 \
+                    USE_MKLDNN=0 \
+                    BUILD_TEST=0 \
+                    USE_FBGEMM=0 \
+                    USE_KINETO=0 \
+                    USE_FLASH_ATTENTION=0 \
+                    USE_MEM_EFF_ATTENTION=0 \
+                    USE_GLOO=0 \
+                    USE_NCCL=0 \
+                    USE_OPENMP=0 \
+                    USE_MSLK=0 \
+                    PYTORCH_ROCM_ARCH=gfx942 \
+                    python setup.py develop"""
             }
             catch(e){
                 echo "Throwing error exception while building Pytorch"
