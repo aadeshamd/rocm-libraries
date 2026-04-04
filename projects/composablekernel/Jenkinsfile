@@ -1186,6 +1186,7 @@ def run_pytorch_tests(Map conf=[:]){
                         fi
                     done
                 """
+                sh "rm -rf /tmp/pytorch/build"
                 sh "python3 /tmp/pytorch/tools/amd_build/build_amd.py"
                 sh """cd /tmp/pytorch && \
                     CMAKE_CXX_STANDARD=20 \
