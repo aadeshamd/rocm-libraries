@@ -36,6 +36,12 @@ namespace rocRoller
          */
         namespace AliasDataFlowTagsDetail
         {
+            struct OrderingRequirement
+            {
+                int before;
+                int after;
+            };
+
             bool GraphExtent::isWithin(KernelGraph const& kgraph, GraphExtent const& gap) const
             {
                 AssertFatal(!gap.begin.empty());
@@ -544,11 +550,162 @@ namespace rocRoller
                 return aliases;
             }
 
+            std::optional<std::vector<OrderingRequirement>> getOrderingRequirements(
+                KernelGraph const& kgraph, GraphExtent const& innerExtent, GraphExtent const& gap)
+            {
+                if(gap.begin.empty() || gap.end.empty() || innerExtent.begin.empty()
+                   || innerExtent.end.empty())
+                    return std::nullopt;
+
+                std::vector<OrderingRequirement> reqs;
+
+                // gap.begin must be LeftFirst before innerExtent.begin
+                for(int gapBegin : gap.begin)
+                {
+                    for(int inBegin : innerExtent.begin)
+                    {
+                        if(inBegin == gapBegin)
+                            continue;
+
+                        auto order = kgraph.control.compareNodes(
+                            rocRoller::UpdateCache, gapBegin, inBegin);
+
+                        if(order == ControlGraph::NodeOrdering::LeftFirst)
+                            continue;
+                        else if(order == ControlGraph::NodeOrdering::Undefined)
+                            reqs.push_back({gapBegin, inBegin});
+                        else
+                            return std::nullopt;
+                    }
+                }
+
+                // innerExtent.end must be LeftFirst before gap.end
+                for(int gapEnd : gap.end)
+                {
+                    for(int inEnd : innerExtent.end)
+                    {
+                        if(inEnd == gapEnd)
+                            continue;
+
+                        auto order
+                            = kgraph.control.compareNodes(rocRoller::UpdateCache, inEnd, gapEnd);
+
+                        if(order == ControlGraph::NodeOrdering::LeftFirst)
+                            continue;
+                        else if(order == ControlGraph::NodeOrdering::Undefined)
+                            reqs.push_back({inEnd, gapEnd});
+                        else
+                            return std::nullopt;
+                    }
+                }
+
+                return reqs;
+            }
+
+            bool isSafeToOrder(KernelGraph const&                      kgraph,
+                               std::vector<OrderingRequirement> const& reqs)
+            {
+                for(auto const& req : reqs)
+                {
+                    // Both nodes must be in the same innermost ForLoop
+                    auto loopBefore
+                        = findContainingOperation<ControlGraph::ForLoopOp>(req.before, kgraph);
+                    auto loopAfter
+                        = findContainingOperation<ControlGraph::ForLoopOp>(req.after, kgraph);
+
+                    if(loopBefore != loopAfter)
+                        return false;
+
+                    // Adding Sequence(before, after) must not create a cycle.
+                    // If after is already LeftFirst before `before`, we'd have a
+                    // contradiction.
+                    auto reverseOrder = kgraph.control.compareNodes(
+                        rocRoller::UpdateCache, req.after, req.before);
+
+                    if(reverseOrder == ControlGraph::NodeOrdering::LeftFirst)
+                        return false;
+                }
+                return true;
+            }
+
         }
 
         KernelGraph AliasDataFlowTags::apply(KernelGraph const& original)
         {
             auto rv = original;
+
+            {
+                auto groupedExtents = AliasDataFlowTagsDetail::getGroupedTagExtents(rv);
+
+                // Collect all ordering requirements across all bins.
+                // Process each bin independently.
+                std::vector<AliasDataFlowTagsDetail::OrderingRequirement> allReqs;
+
+                for(auto& [typeKey, extents] : groupedExtents)
+                {
+                    if(extents.size() < 2)
+                        continue;
+
+                    auto logger = Log::getLogger();
+                    if(logger->should_log(LogLevel::Debug))
+                    {
+                        std::ostringstream msg;
+                        streamJoinTuple(msg, ", ", typeKey);
+                        logger->debug("OrderForAlias: analyzing bin {{{}}} with {} extents",
+                                      msg.str(),
+                                      extents.size());
+                    }
+
+                    for(auto outer = extents.begin(); outer != extents.end(); ++outer)
+                    {
+                        for(auto inner = extents.begin(); inner != extents.end(); ++inner)
+                        {
+                            if(outer == inner)
+                                continue;
+
+                            // Skip pairs that are already aliasable --
+                            // AliasDataFlowTags will handle them without our help
+                            if(inner->fitsWithin(rv, *outer))
+                                continue;
+
+                            // Check each gap in the outer extent
+                            for(auto const& gap : outer->gaps)
+                            {
+                                auto reqs = getOrderingRequirements(rv, inner->extent, gap);
+
+                                // reqs is nullopt if contradictory, empty if already fits,
+                                // non-empty if ordering can help
+                                if(reqs.has_value() && !reqs->empty() && isSafeToOrder(rv, *reqs))
+                                {
+                                    allReqs.insert(allReqs.end(), reqs->begin(), reqs->end());
+                                    // Found one gap that works; no need to check more
+                                    // gaps for this (outer, inner) pair
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Apply collected orderings, re-checking safety since earlier
+                // additions may create transitive orderings
+                int applied = 0;
+                for(auto const& req : allReqs)
+                {
+                    auto order
+                        = rv.control.compareNodes(rocRoller::UpdateCache, req.before, req.after);
+
+                    if(order == ControlGraph::NodeOrdering::Undefined)
+                    {
+                        rv.control.chain<ControlGraph::Sequence>(req.before, req.after);
+                        applied++;
+                        Log::debug("OrderForAlias: Sequence({}, {})", req.before, req.after);
+                    }
+                    // LeftFirst: already ordered (possibly via transitive closure
+                    //            from an earlier addition) -- skip
+                    // RightFirst: contradicts -- skip to avoid cycle
+                }
+            }
 
             auto aliases = AliasDataFlowTagsDetail::findAliasCandidates(rv);
 
