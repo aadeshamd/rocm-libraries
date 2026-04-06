@@ -342,11 +342,7 @@ namespace rocRoller
                 rv.extent.begin = ordering.roots().map(getNode).to<std::set>();
                 rv.extent.end   = ordering.leaves().map(getNode).to<std::set>();
 
-                auto isRead = [&](int idx) {
-                    return ordering.getNode(idx).rw == Tracer::READ
-                           || ordering.getNode(idx).rw == Tracer::READWRITE;
-                    ;
-                };
+                auto isRead  = [&](int idx) { return ordering.getNode(idx).rw == Tracer::READ; };
                 auto isWrite = [&](int idx) { return ordering.getNode(idx).rw == Tracer::WRITE; };
 
                 auto writes = ordering.getNodes().filter(isWrite).to<std::set>();
@@ -382,20 +378,20 @@ namespace rocRoller
                             for(int out : outgoing)
                                 outControl.insert(ordering.getNode(out).control);
 
-                            auto forLoop = findContainingOperation<ControlGraph::ForLoopOp>(
-                                *incControl.begin(), kgraph);
+                            //auto forLoop = findContainingOperation<ControlGraph::ForLoopOp>(
+                            //    *incControl.begin(), kgraph);
 
-                            auto sameForLoop = [&](int node) {
-                                return findContainingOperation<ControlGraph::ForLoopOp>(node,
-                                                                                        kgraph)
-                                       == forLoop;
-                            };
+                            //auto sameForLoop = [&](int node) {
+                            //    return findContainingOperation<ControlGraph::ForLoopOp>(node,
+                            //                                                            kgraph)
+                            //           == forLoop;
+                            //};
 
-                            if(std::all_of(incControl.begin(), incControl.end(), sameForLoop)
-                               && std::all_of(outControl.begin(), outControl.end(), sameForLoop))
-                            {
-                                rv.gaps.emplace_back(std::move(incControl), std::move(outControl));
-                            }
+                            //if(std::all_of(incControl.begin(), incControl.end(), sameForLoop)
+                            //   && std::all_of(outControl.begin(), outControl.end(), sameForLoop))
+                            //{
+                            rv.gaps.emplace_back(std::move(incControl), std::move(outControl));
+                            //}
                         }
                     }
                 }
