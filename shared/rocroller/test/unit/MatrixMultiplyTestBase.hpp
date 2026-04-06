@@ -257,7 +257,7 @@ namespace MatrixMultiplyTest
                 auto scaledA = command->addOperation(rocRoller::Operations::BlockScale(
                     tagLoadA, 2, tagLoadScaleA, {1, scaleBlockSize}));
                 auto scaledB = command->addOperation(rocRoller::Operations::BlockScale(
-                    tagLoadB, 2, tagLoadScaleB, {scaleBlockSize, 1}));
+                    tagLoadB, 2, tagLoadScaleB, {1, scaleBlockSize}));
 
                 tagStoreD
                     = command->addOperation(rocRoller::Operations::T_Mul(scaledA,
@@ -606,15 +606,14 @@ namespace MatrixMultiplyTest
 
             auto command = std::make_shared<Command>();
 
-            std::vector<size_t> unitStridesN = {1, 0};
-            std::vector<size_t> unitStridesT = {0, 1};
+            std::vector<size_t> unitStrides = {1, 0};
 
-            auto tagTensorA = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataTypeA, {}, transA ? unitStridesT : unitStridesN));
+            auto tagTensorA = command->addOperation(
+                rocRoller::Operations::Tensor(2, dataTypeA, {}, unitStrides));
             auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorA));
 
-            auto tagTensorB = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataTypeB, {}, transB ? unitStridesT : unitStridesN)); // B
+            auto tagTensorB = command->addOperation(
+                rocRoller::Operations::Tensor(2, dataTypeB, {}, unitStrides));
             auto tagLoadB = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorB));
 
             // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]

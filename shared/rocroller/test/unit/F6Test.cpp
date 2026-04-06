@@ -313,25 +313,25 @@ namespace rocRollerTest
             auto command = std::make_shared<Command>();
 
             auto tagTensorA = command->addOperation(
-                rocRoller::Operations::Tensor(2, F6Type, {}, {0, 1})); // Load A
+                rocRoller::Operations::Tensor(2, F6Type, {}, {1, 0})); // Load A
             auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorA));
 
             auto tagTensorB = command->addOperation(
-                rocRoller::Operations::Tensor(2, F6Type, {}, {0, 1})); // Store B
+                rocRoller::Operations::Tensor(2, F6Type, {}, {1, 0})); // Store B
             command->addOperation(rocRoller::Operations::T_Store_Tiled(tagLoadA, tagTensorB));
 
             auto commandArgs = command->createArguments();
             commandArgs.setArgument(tagTensorA, ArgumentType::Value, d_a.get());
-            commandArgs.setArgument(tagTensorA, ArgumentType::Size, 0, (size_t)nx);
-            commandArgs.setArgument(tagTensorA, ArgumentType::Size, 1, (size_t)ny);
-            commandArgs.setArgument(tagTensorA, ArgumentType::Stride, 0, (size_t)ny);
-            commandArgs.setArgument(tagTensorA, ArgumentType::Stride, 1, (size_t)1);
+            commandArgs.setArgument(tagTensorA, ArgumentType::Size, 0, (size_t)ny);
+            commandArgs.setArgument(tagTensorA, ArgumentType::Size, 1, (size_t)nx);
+            commandArgs.setArgument(tagTensorA, ArgumentType::Stride, 0, (size_t)1);
+            commandArgs.setArgument(tagTensorA, ArgumentType::Stride, 1, (size_t)ny);
 
             commandArgs.setArgument(tagTensorB, ArgumentType::Value, d_b.get());
-            commandArgs.setArgument(tagTensorB, ArgumentType::Size, 0, (size_t)nx);
-            commandArgs.setArgument(tagTensorB, ArgumentType::Size, 1, (size_t)ny);
-            commandArgs.setArgument(tagTensorB, ArgumentType::Stride, 0, (size_t)ny);
-            commandArgs.setArgument(tagTensorB, ArgumentType::Stride, 1, (size_t)1);
+            commandArgs.setArgument(tagTensorB, ArgumentType::Size, 0, (size_t)ny);
+            commandArgs.setArgument(tagTensorB, ArgumentType::Size, 1, (size_t)nx);
+            commandArgs.setArgument(tagTensorB, ArgumentType::Stride, 0, (size_t)1);
+            commandArgs.setArgument(tagTensorB, ArgumentType::Stride, 1, (size_t)ny);
 
             auto params = std::make_shared<CommandParameters>();
             params->setManualKernelDimension(2);
