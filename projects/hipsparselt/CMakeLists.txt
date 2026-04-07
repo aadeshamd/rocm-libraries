@@ -155,6 +155,9 @@ if(HIPSPARSELT_ENABLE_HIP)
     set(TENSILELITE_ENABLE_HOST ON CACHE BOOL "" FORCE)
     set(HIPBLASLT_ENABLE_ASAN ${HIPSPARSELT_ENABLE_ASAN} CACHE BOOL "" FORCE)
     set(HIPBLASLT_DEVICE_LIBRARY_PATH "${CMAKE_BINARY_DIR}/Tensile" CACHE PATH "" FORCE)
+    # hipSPARSELt does not use ExtOp or MatrixTransform artifacts
+    set(HIPBLASLT_ENABLE_EXTOPS OFF CACHE BOOL "" FORCE)
+    set(HIPBLASLT_ENABLE_MATRIX_TRANSFORM OFF CACHE BOOL "" FORCE)
     set(HIPBLASLT_LIBLOGIC_PATH
         "${CMAKE_CURRENT_SOURCE_DIR}/library/src/hcc_detail/rocsparselt/src/spmm/Tensile/Logic/asm_full"
         CACHE STRING "" FORCE
@@ -184,6 +187,14 @@ endif()
 add_subdirectory(library)
 
 if(HIPSPARSELT_ENABLE_CLIENT)
+    if(NOT HIPSPARSELT_ENABLE_THEROCK)
+        if(NOT DEFINED CMAKE_Fortran_COMPILER AND NOT DEFINED ENV{FC})
+            set(CMAKE_Fortran_COMPILER "gfortran")
+        endif()
+        enable_language(Fortran)
+        find_package(LAPACK)
+        include(fetch_lapack)
+    endif()
     add_subdirectory(clients)
 endif()
 
