@@ -14,7 +14,7 @@ add_library(
     example_provider_impl OBJECT
     ExampleProviderHandle.cpp
     ExampleProviderContainer.cpp
-    ExampleProviderPublic.cpp
+    ExampleProviderPluginPublic.cpp
     engines/ExampleProviderEngine.cpp
     engines/plans/ReluPlanBuilder.cpp
     engines/plans/ReluPlan.cpp

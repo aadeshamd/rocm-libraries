@@ -31,7 +31,7 @@ configure time and compiled at runtime by HIPRTC. No GPU compiler (`hipcc`,
 ## Directory Structure
 
 ```
-example_provider/
+example_engine_plugin/
 ├── CMakeLists.txt                       # Root CMake: project options, dependencies
 ├── README.md                            # This file
 ├── kernels/                             # GPU kernel source files (embedded at configure time)
@@ -51,7 +51,7 @@ example_provider/
 │       └── ConvForwardNaive.cpp         # Naive ConvFwd GPU kernel (~35 lines)
 ├── src/
 │   ├── CMakeLists.txt                   # OBJECT, static, and shared library targets
-│   ├── ExampleProviderPublic.cpp          # C entry points (5 macros + EnginePluginImpl.inl)
+│   ├── ExampleProviderPluginPublic.cpp     # C entry points (5 macros + EnginePluginImpl.inl)
 │   ├── ExampleProviderContainer.hpp/cpp   # Engine registration and EngineManager
 │   ├── ExampleProviderHandle.hpp/cpp      # Plugin handle (stream, container reference)
 │   ├── ExampleProviderContext.hpp         # Execution context
@@ -93,7 +93,7 @@ example_provider/
 
 ## Build Instructions
 
-Run these commands from the example_provider folder.
+Run these commands from the example_engine_plugin folder.
 
 ### Linux (GCC)
 
@@ -158,7 +158,7 @@ cmake .. -DHIPDNN_EXAMPLE_PROVIDER_BUILD_UNIT_TESTS=OFF \
 A hipDNN plugin is a shared library that implements a C API defined by the
 plugin SDK. The SDK provides `EnginePluginImpl.inl`, which generates all
 required C entry points when five macros are defined in
-`ExampleProviderPublic.cpp`:
+`ExampleProviderPluginPublic.cpp`:
 
 - `HIPDNN_PLUGIN_NAME` -- display name string
 - `HIPDNN_PLUGIN_VERSION` -- version string
@@ -312,12 +312,12 @@ enabling unit tests to run without GPU hardware:
    - **Plugin display name**: The `HIPDNN_PLUGIN_NAME` macro value (e.g.,
      `"Your Name xxx engine"`)
 
-2. **Copy and rename the directory**: Copy `example_provider/` to your new
-   plugin directory (e.g., `your_name_provider/`).
+2. **Copy and rename the directory**: Copy `example_engine_plugin/` to your new
+   plugin directory (e.g., `your_name-provider/`).
 
-3. **Verify the build on your system**: Before making any code changes, run
-   `cmake --workflow --preset release` from your new plugin directory to
-   confirm the example plugin builds correctly in your environment and that tests
+3. **Verify the build on your system**: Before making any code changes, build
+   the plugin and run the tests from your new plugin directory to confirm
+   the example plugin builds correctly in your environment and that tests
    pass successfully. Resolve any build issues such as missing dependencies,
    incorrect paths, or toolchain incompatibilities, before continuing. This
    ensures that any issues encountered later are caused by changes made to the
@@ -330,7 +330,7 @@ enabling unit tests to run without GPU hardware:
 5. **Update the namespace**: Change the `example_provider` namespace to your
    plugin's namespace throughout all source files.
 
-6. **Update the 5 macros** in `ExampleProviderPublic.cpp`: Set
+6. **Update the 5 macros** in `ExampleProviderPluginPublic.cpp`: Set
    `HIPDNN_PLUGIN_NAME` to your plugin's display name and generate new unique
    values for the four type macros.
 
@@ -378,7 +378,7 @@ and `TEMPLATE REFERENCE` comment markers in the source files for per-file guidan
 
 | Files | Marker | What to Do |
 |-------|--------|------------|
-| `ExampleProviderPublic.cpp`, `ExampleProviderContainer.hpp/cpp`, `ExampleProviderHandle.hpp/cpp`, `ExampleProviderContext.hpp`, `ExampleProviderSettings.hpp`, `ExampleProviderEngine.hpp/cpp`, `ExampleProviderUtils.hpp` | `TEMPLATE ADAPTATION` | Rename `ExampleProvider` to `YourPlugin`. Adjust class names, namespace, and includes. These files are framework plumbing; the structure stays the same. |
+| `ExampleProviderPluginPublic.cpp`, `ExampleProviderContainer.hpp/cpp`, `ExampleProviderHandle.hpp/cpp`, `ExampleProviderContext.hpp`, `ExampleProviderSettings.hpp`, `ExampleProviderEngine.hpp/cpp`, `ExampleProviderUtils.hpp` | `TEMPLATE ADAPTATION` | Rename `ExampleProvider` to `YourPlugin`. Adjust class names, namespace, and includes. These files are framework plumbing; the structure stays the same. |
 | `hip/IKernelCompiler.hpp`, `hip/ICompiledProgram.hpp`, `hip/IRunnableKernel.hpp`, `hip/HipKernelCompiler.hpp`, `hip/HipCompiledProgram.hpp/cpp`, `hip/HipRunnableKernel.hpp/cpp`, `hip/HipUtils.hpp` | *(none)* | Update namespace only. These implement the HIPRTC compilation pipeline and do not contain operation-specific logic. |
 | `engines/plans/ReluPlanBuilder.hpp/cpp`, `engines/plans/ReluPlan.hpp/cpp`, `engines/plans/ReluParams.hpp` | `TEMPLATE REFERENCE` | Study to learn the PlanBuilder/Plan pattern, then replace with your own operation's PlanBuilder, Plan, and Params. Key methods: `isApplicable()`, `getCustomKnobs()`, `initializeExecutionSettings()`, `buildPlan()`, `compile()`, `execute()`. |
 | `engines/plans/ConvFwdPlanBuilder.hpp/cpp`, `engines/plans/ConvFwdPlan.hpp/cpp`, `engines/plans/ConvFwdParams.hpp` | `TEMPLATE REFERENCE` | Second example of the same pattern. Compare with ReLU to see how different operations handle graph matching, parameters, and kernel launch. |
@@ -545,7 +545,7 @@ loading, engine selection, knob modification, and correctness verification.
 
 ## Quick Checklist
 
-- [ ] Copy and rename `example_provider/` directory
+- [ ] Copy and rename `example_engine_plugin/` directory
 - [ ] Perform a preliminary build and test runs to verify environment.
 - [ ] Rename all `ExampleProvider*` classes to `YourPlugin*`
 - [ ] Update namespace from `example_provider`
