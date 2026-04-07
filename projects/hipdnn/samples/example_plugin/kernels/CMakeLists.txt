@@ -47,7 +47,7 @@ add_custom_command(
     VERBATIM
 )
 
-add_custom_target(example_plugin_kernel_embed
+add_custom_target(example_provider_kernel_embed
     DEPENDS ${KERNEL_GENERATED_FILES}
     COMMENT "Updating embedded kernel sources"
 )

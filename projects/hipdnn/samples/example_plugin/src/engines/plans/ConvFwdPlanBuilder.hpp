@@ -14,12 +14,12 @@
 #include <hipdnn_data_sdk/data_objects/knob_value_generated.h>
 #include <hipdnn_plugin_sdk/interfaces/IPlanBuilder.hpp>
 
-#include "ExamplePluginContext.hpp"
-#include "ExamplePluginHandle.hpp"
-#include "ExamplePluginSettings.hpp"
+#include "ExampleProviderContext.hpp"
+#include "ExampleProviderHandle.hpp"
+#include "ExampleProviderSettings.hpp"
 #include "hip/IKernelCompiler.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// PlanBuilder for GPU-based naive convolution forward.
@@ -27,9 +27,9 @@ namespace example_plugin
 /// Handles single-node ConvolutionFwdAttributes graphs with CROSS_CORRELATION
 /// mode and FLOAT data type. Provides a custom BLOCK_SIZE knob with
 /// choices [64, 128, 256].
-class ConvFwdPlanBuilder : public hipdnn_plugin_sdk::IPlanBuilder<ExamplePluginHandle,
-                                                                  ExamplePluginSettings,
-                                                                  ExamplePluginContext>
+class ConvFwdPlanBuilder : public hipdnn_plugin_sdk::IPlanBuilder<ExampleProviderHandle,
+                                                                  ExampleProviderSettings,
+                                                                  ExampleProviderContext>
 {
 public:
     explicit ConvFwdPlanBuilder(const IKernelCompiler& compiler);
@@ -38,31 +38,31 @@ public:
     ConvFwdPlanBuilder(const ConvFwdPlanBuilder&) = delete;
     ConvFwdPlanBuilder& operator=(const ConvFwdPlanBuilder&) = delete;
 
-    bool isApplicable(const ExamplePluginHandle& handle,
+    bool isApplicable(const ExampleProviderHandle& handle,
                       const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const override;
 
-    size_t getMaxWorkspaceSize(const ExamplePluginHandle& handle,
+    size_t getMaxWorkspaceSize(const ExampleProviderHandle& handle,
                                const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
-                               const ExamplePluginSettings& executionSettings) const override;
+                               const ExampleProviderSettings& executionSettings) const override;
 
     void initializeExecutionSettings(
-        const ExamplePluginHandle& handle,
+        const ExampleProviderHandle& handle,
         const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
         const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-        ExamplePluginSettings& executionSettings) const override;
+        ExampleProviderSettings& executionSettings) const override;
 
     void buildPlan(
-        const ExamplePluginHandle& handle,
+        const ExampleProviderHandle& handle,
         const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
         [[maybe_unused]] const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-        ExamplePluginContext& executionContext) const override;
+        ExampleProviderContext& executionContext) const override;
 
     std::vector<hipdnn_data_sdk::data_objects::KnobT>
-        getCustomKnobs(const ExamplePluginHandle& handle,
+        getCustomKnobs(const ExampleProviderHandle& handle,
                        const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const override;
 
 private:
     const IKernelCompiler& _compiler;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

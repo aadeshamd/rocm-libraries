@@ -18,8 +18,8 @@
 #include "mocks/MockKernelCompiler.hpp"
 #include "mocks/MockRunnableKernel.hpp"
 
-using namespace example_plugin;
-using namespace example_plugin::test_helpers;
+using namespace example_provider;
+using namespace example_provider::test_helpers;
 using ::testing::_;
 using ::testing::Return;
 
@@ -27,7 +27,7 @@ class ConvFwdPlanBuilderTest : public ::testing::Test
 {
 protected:
     MockKernelCompiler mockCompiler;
-    ExamplePluginHandle handle;
+    ExampleProviderHandle handle;
 
     std::unique_ptr<ConvFwdPlanBuilder> planBuilder;
 
@@ -80,7 +80,7 @@ TEST_F(ConvFwdPlanBuilderTest, GetMaxWorkspaceSize_ReturnsZero)
     auto fbb = createConvFwdGraph();
     hipdnn_data_sdk::flatbuffer_utilities::GraphWrapper graph(fbb.GetBufferPointer(),
                                                               fbb.GetSize());
-    ExamplePluginSettings settings;
+    ExampleProviderSettings settings;
     EXPECT_EQ(planBuilder->getMaxWorkspaceSize(handle, graph, settings), 0u);
 }
 
@@ -114,7 +114,7 @@ TEST_F(ConvFwdPlanBuilderTest, BuildPlan_SetsPlanOnContext)
     EXPECT_CALL(*rawProgram, getRunnableKernel("conv_forward_naive_kernel"))
         .WillOnce(Return(testing::ByMove(std::move(kernel))));
 
-    ExamplePluginContext context;
+    ExampleProviderContext context;
     planBuilder->buildPlan(handle, graph, config, context);
 
     EXPECT_TRUE(context.hasValidPlan());

@@ -13,7 +13,7 @@
 
 #include <vector>
 
-namespace example_plugin
+namespace example_provider
 {
 
 HipCompiledProgram::HipCompiledProgram(const std::string& kernelFileName,
@@ -105,4 +105,4 @@ std::unique_ptr<IRunnableKernel>
     return std::make_unique<HipRunnableKernel>(function, kernelFunctionName);
 }
 
-} // namespace example_plugin
+} // namespace example_provider

@@ -18,14 +18,14 @@
 #include <hipdnn_plugin_sdk/PluginApiDataTypes.h>
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 
-#include "ExamplePluginHandle.hpp"
+#include "ExampleProviderHandle.hpp"
 #include "engines/plans/ReluParams.hpp"
 #include "engines/plans/ReluPlan.hpp"
 #include "mocks/MockCompiledProgram.hpp"
 #include "mocks/MockKernelCompiler.hpp"
 #include "mocks/MockRunnableKernel.hpp"
 
-using namespace example_plugin;
+using namespace example_provider;
 using ::testing::_;
 using ::testing::Return;
 
@@ -38,7 +38,7 @@ protected:
     static constexpr double kNegativeSlope = 0.0;
 
     MockKernelCompiler mockCompiler;
-    ExamplePluginHandle handle;
+    ExampleProviderHandle handle;
 
     // Raw pointers for verification. The plan takes ownership through unique_ptr.
     MockCompiledProgram* rawCompiledProgram = nullptr;

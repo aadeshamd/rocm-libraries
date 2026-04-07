@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Interface for compiling GPU kernel source files at runtime.
@@ -26,4 +26,4 @@ public:
         = 0;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

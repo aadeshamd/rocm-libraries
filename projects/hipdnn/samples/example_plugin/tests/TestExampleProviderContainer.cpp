@@ -3,30 +3,30 @@
 
 #include <gtest/gtest.h>
 
-#include "ExamplePluginContainer.hpp"
+#include "ExampleProviderContainer.hpp"
 
-using namespace example_plugin;
+using namespace example_provider;
 
-class ExamplePluginContainerTest : public ::testing::Test
+class ExampleProviderContainerTest : public ::testing::Test
 {
 protected:
-    ExamplePluginContainer container;
+    ExampleProviderContainer container;
 };
 
-TEST_F(ExamplePluginContainerTest, CopyEngineIds_QueryCountOnly)
+TEST_F(ExampleProviderContainerTest, CopyEngineIds_QueryCountOnly)
 {
     uint32_t numEngines = 0;
-    auto total = ExamplePluginContainer::copyEngineIds(nullptr, 0, numEngines);
+    auto total = ExampleProviderContainer::copyEngineIds(nullptr, 0, numEngines);
 
     EXPECT_EQ(total, 2u);
     EXPECT_EQ(numEngines, 2u);
 }
 
-TEST_F(ExamplePluginContainerTest, CopyEngineIds_CopyAll)
+TEST_F(ExampleProviderContainerTest, CopyEngineIds_CopyAll)
 {
     std::vector<int64_t> ids(2, 0);
     uint32_t numEngines = 0;
-    auto total = ExamplePluginContainer::copyEngineIds(ids.data(), 2, numEngines);
+    auto total = ExampleProviderContainer::copyEngineIds(ids.data(), 2, numEngines);
 
     EXPECT_EQ(total, 2u);
     EXPECT_EQ(numEngines, 2u);
@@ -37,11 +37,11 @@ TEST_F(ExamplePluginContainerTest, CopyEngineIds_CopyAll)
     EXPECT_NE(ids[0], ids[1]);
 }
 
-TEST_F(ExamplePluginContainerTest, CopyEngineIds_CopyPartial)
+TEST_F(ExampleProviderContainerTest, CopyEngineIds_CopyPartial)
 {
     std::vector<int64_t> ids(1, 0);
     uint32_t numEngines = 0;
-    auto total = ExamplePluginContainer::copyEngineIds(ids.data(), 1, numEngines);
+    auto total = ExampleProviderContainer::copyEngineIds(ids.data(), 1, numEngines);
 
     // Total is always the full count, but only 1 was copied
     EXPECT_EQ(total, 2u);
@@ -49,7 +49,7 @@ TEST_F(ExamplePluginContainerTest, CopyEngineIds_CopyPartial)
     EXPECT_NE(ids[0], 0);
 }
 
-TEST_F(ExamplePluginContainerTest, GetEngineManager_HasAllEngines)
+TEST_F(ExampleProviderContainerTest, GetEngineManager_HasAllEngines)
 {
     auto& manager = container.getEngineManager();
     auto ids = manager.getAllEngineIds();

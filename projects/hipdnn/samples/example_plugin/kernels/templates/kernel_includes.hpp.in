@@ -22,11 +22,11 @@
 @HEADER_DECLARATIONS@
 // Header declarations generation end
 
-namespace example_plugin {
+namespace example_provider {
 
 std::string_view getKernelInc(const char* name);
 
 void getKernelIncList(std::vector<std::string_view>& includeTexts,
                       std::vector<const char*>& includeNames);
 
-} // namespace example_plugin
+} // namespace example_provider

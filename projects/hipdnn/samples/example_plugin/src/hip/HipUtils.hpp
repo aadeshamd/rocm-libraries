@@ -9,7 +9,7 @@
 
 #include <string>
 
-namespace example_plugin
+namespace example_provider
 {
 
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
@@ -42,4 +42,4 @@ namespace example_plugin
 
 // NOLINTEND(cppcoreguidelines-macro-usage)
 
-} // namespace example_plugin
+} // namespace example_provider

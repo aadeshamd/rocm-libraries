@@ -1,27 +1,28 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "ExamplePluginEngine.hpp"
+#include "ExampleProviderEngine.hpp"
 
 #include <hipdnn_data_sdk/data_objects/engine_details_generated.h>
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
 
-namespace example_plugin
+namespace example_provider
 {
 
-ExamplePluginEngine::ExamplePluginEngine(int64_t id)
+ExampleProviderEngine::ExampleProviderEngine(int64_t id)
     : _id(id)
 {
 }
 
-int64_t ExamplePluginEngine::id() const
+int64_t ExampleProviderEngine::id() const
 {
     return _id;
 }
 
-bool ExamplePluginEngine::isApplicable(
-    ExamplePluginHandle& handle, const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const
+bool ExampleProviderEngine::isApplicable(
+    ExampleProviderHandle& handle,
+    const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const
 {
     for(const auto& planBuilder : _planBuilders)
     {
@@ -33,9 +34,9 @@ bool ExamplePluginEngine::isApplicable(
     return false;
 }
 
-void ExamplePluginEngine::getDetails(ExamplePluginHandle& handle,
-                                     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
-                                     hipdnnPluginConstData_t& detailsOut) const
+void ExampleProviderEngine::getDetails(ExampleProviderHandle& handle,
+                                       const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
+                                       hipdnnPluginConstData_t& detailsOut) const
 {
     flatbuffers::FlatBufferBuilder builder;
 
@@ -71,12 +72,12 @@ void ExamplePluginEngine::getDetails(ExamplePluginHandle& handle,
     handle.storeEngineDetailsDetachedBuffer(detailsOut.ptr, std::move(detachedBuffer));
 }
 
-size_t ExamplePluginEngine::getMaxWorkspaceSize(
-    const ExamplePluginHandle& handle,
+size_t ExampleProviderEngine::getMaxWorkspaceSize(
+    const ExampleProviderHandle& handle,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
     const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig) const
 {
-    ExamplePluginSettings executionSettings;
+    ExampleProviderSettings executionSettings;
     size_t workspaceSize = 0;
 
     for(const auto& planBuilder : _planBuilders)
@@ -94,17 +95,17 @@ size_t ExamplePluginEngine::getMaxWorkspaceSize(
     return workspaceSize;
 }
 
-void ExamplePluginEngine::initializeExecutionContext(
-    const ExamplePluginHandle& handle,
+void ExampleProviderEngine::initializeExecutionContext(
+    const ExampleProviderHandle& handle,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
     const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-    ExamplePluginContext& executionContext) const
+    ExampleProviderContext& executionContext) const
 {
     for(const auto& planBuilder : _planBuilders)
     {
         if(planBuilder->isApplicable(handle, opGraph))
         {
-            ExamplePluginSettings executionSettings;
+            ExampleProviderSettings executionSettings;
             planBuilder->initializeExecutionSettings(
                 handle, opGraph, engineConfig, executionSettings);
             executionContext.setExecutionSettings(executionSettings);
@@ -114,12 +115,12 @@ void ExamplePluginEngine::initializeExecutionContext(
     }
 }
 
-void ExamplePluginEngine::addPlanBuilder(
-    std::unique_ptr<hipdnn_plugin_sdk::IPlanBuilder<ExamplePluginHandle,
-                                                    ExamplePluginSettings,
-                                                    ExamplePluginContext>> planBuilder)
+void ExampleProviderEngine::addPlanBuilder(
+    std::unique_ptr<hipdnn_plugin_sdk::IPlanBuilder<ExampleProviderHandle,
+                                                    ExampleProviderSettings,
+                                                    ExampleProviderContext>> planBuilder)
 {
     _planBuilders.push_back(std::move(planBuilder));
 }
 
-} // namespace example_plugin
+} // namespace example_provider

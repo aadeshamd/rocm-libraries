@@ -18,7 +18,7 @@
 @HEADER_DEFINITIONS@
 // Header definitions generation end
 
-namespace example_plugin {
+namespace example_provider {
 
 static const std::unordered_map<std::string_view, std::string_view>& getKernelIncludes()
 {
@@ -55,4 +55,4 @@ void getKernelIncList(std::vector<std::string_view>& includeTexts,
     }
 }
 
-} // namespace example_plugin
+} // namespace example_provider

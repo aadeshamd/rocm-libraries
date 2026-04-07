@@ -11,11 +11,11 @@
 # are built from these same object files.
 # =============================================================================
 add_library(
-    example_plugin_impl OBJECT
-    ExamplePluginHandle.cpp
-    ExamplePluginContainer.cpp
-    ExamplePluginPublic.cpp
-    engines/ExamplePluginEngine.cpp
+    example_provider_impl OBJECT
+    ExampleProviderHandle.cpp
+    ExampleProviderContainer.cpp
+    ExampleProviderPublic.cpp
+    engines/ExampleProviderEngine.cpp
     engines/plans/ReluPlanBuilder.cpp
     engines/plans/ReluPlan.cpp
     engines/plans/ConvFwdPlanBuilder.cpp
@@ -25,13 +25,13 @@ add_library(
     ${KERNEL_GENERATED_SOURCES}
 )
 
-add_dependencies(example_plugin_impl example_plugin_kernel_embed)
+add_dependencies(example_provider_impl example_provider_kernel_embed)
 
-target_include_directories(example_plugin_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(example_plugin_impl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../kernels)
-target_link_libraries(example_plugin_impl PUBLIC hipdnn_plugin_sdk hipdnn_data_sdk hip::host hiprtc::hiprtc)
+target_include_directories(example_provider_impl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(example_provider_impl PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/../kernels)
+target_link_libraries(example_provider_impl PUBLIC hipdnn_plugin_sdk hipdnn_data_sdk hip::host hiprtc::hiprtc)
 
-set_target_properties(example_plugin_impl PROPERTIES
+set_target_properties(example_provider_impl PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     POSITION_INDEPENDENT_CODE ON
 )
@@ -40,22 +40,22 @@ set_target_properties(example_plugin_impl PROPERTIES
 # Static library: exposes plugin internals for unit tests to link against.
 # This is not installed or distributed. It exists only for testability.
 # =============================================================================
-add_library(example_plugin_private STATIC $<TARGET_OBJECTS:example_plugin_impl>)
-target_include_directories(example_plugin_private PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(example_plugin_private PUBLIC hipdnn_plugin_sdk hipdnn_data_sdk example_plugin_impl)
+add_library(example_provider_private STATIC $<TARGET_OBJECTS:example_provider_impl>)
+target_include_directories(example_provider_private PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(example_provider_private PUBLIC hipdnn_plugin_sdk hipdnn_data_sdk example_provider_impl)
 
 # =============================================================================
 # Shared library: the actual plugin loaded at runtime by hipDNN.
 # Visibility is set to hidden so only the C entry points are exported.
 # =============================================================================
-add_library(example_plugin SHARED $<TARGET_OBJECTS:example_plugin_impl>)
-target_link_libraries(example_plugin PRIVATE hipdnn_plugin_sdk hipdnn_data_sdk hip::host hiprtc::hiprtc)
+add_library(example_provider SHARED $<TARGET_OBJECTS:example_provider_impl>)
+target_link_libraries(example_provider PRIVATE hipdnn_plugin_sdk hipdnn_data_sdk hip::host hiprtc::hiprtc)
 
 if(NOT WIN32)
-    target_link_libraries(example_plugin PRIVATE "-Xlinker --exclude-libs=ALL")
+    target_link_libraries(example_provider PRIVATE "-Xlinker --exclude-libs=ALL")
 endif()
 
-set_target_properties(example_plugin PROPERTIES
+set_target_properties(example_provider PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     INSTALL_RPATH "${ROCM_PATH}/lib"
     INSTALL_RPATH_USE_LINK_PATH TRUE

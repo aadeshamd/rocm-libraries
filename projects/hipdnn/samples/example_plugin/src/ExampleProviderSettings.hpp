@@ -12,7 +12,7 @@
 ///
 /// Holds settings that control execution behavior, populated from
 /// engine configuration knobs during initializeExecutionSettings().
-struct ExamplePluginSettings
+struct ExampleProviderSettings
 {
     /// Negative slope for leaky ReLU (0.0 = standard ReLU).
     /// Controlled by the "example.relu.negative_slope" knob.

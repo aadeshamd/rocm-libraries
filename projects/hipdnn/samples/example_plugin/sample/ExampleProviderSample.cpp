@@ -31,7 +31,7 @@
 // Prerequisites:
 //   - hipDNN installed
 //   - ROCm with HIPRTC and a compatible GPU (for GPU execution portions)
-//   - The example_plugin shared library (built in the same CMake project)
+//   - The example_provider shared library (built in the same CMake project)
 
 #include <algorithm>
 #include <cmath>
@@ -130,7 +130,7 @@ static bool runReluGraph(hipdnnHandle_t handle,
     std::vector<int64_t> dims = {1, 1, 1, numElements};
 
     auto [graph, x, y] = createReluGraph(graphName, dims);
-    graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_RELU_ENGINE");
+    graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_RELU_ENGINE");
 
     auto result = graph->build(handle);
     if(!checkGraphResult(result, "build"))
@@ -227,7 +227,7 @@ static void printLoadedPlugins(hipdnnHandle_t handle)
     }
 }
 
-// Check whether the example_plugin is present among loaded plugins.
+// Check whether the example_provider is present among loaded plugins.
 // Returns true if found, false otherwise.
 static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeLabel)
 {
@@ -242,7 +242,7 @@ static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeL
     bool found = false;
     for(const auto& path : paths)
     {
-        if(path.string().find("example_plugin") != std::string::npos)
+        if(path.string().find("example_provider") != std::string::npos)
         {
             found = true;
             break;
@@ -251,7 +251,7 @@ static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeL
 
     if(!found)
     {
-        std::cerr << "  ERROR: example_plugin not found among loaded plugins after " << modeLabel
+        std::cerr << "  ERROR: example_provider not found among loaded plugins after " << modeLabel
                   << "\n";
         return false;
     }
@@ -304,8 +304,8 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     y->set_uid(2).set_data_type(DataType::FLOAT).set_output(true);
 
     // Select the example plugin's GPU ReLU engine by name
-    std::cout << "  Selecting engine: EXAMPLE_PLUGIN_RELU_ENGINE\n";
-    graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_RELU_ENGINE");
+    std::cout << "  Selecting engine: EXAMPLE_PROVIDER_RELU_ENGINE\n";
+    graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_RELU_ENGINE");
 
     auto result = graph->validate();
     if(!checkGraphResult(result, "validate"))
@@ -522,8 +522,8 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
     yOut->set_data_type(DataType::FLOAT).set_output(true);
 
     // Select the example plugin's ConvFwd engine by name
-    std::cout << "  Selecting engine: EXAMPLE_PLUGIN_CONV_FWD_ENGINE\n";
-    graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_CONV_FWD_ENGINE");
+    std::cout << "  Selecting engine: EXAMPLE_PROVIDER_CONV_FWD_ENGINE\n";
+    graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_CONV_FWD_ENGINE");
 
     // Use the build() convenience method (contrasts with Scenario 1's explicit
     // 6-step sequence, showing both API styles)

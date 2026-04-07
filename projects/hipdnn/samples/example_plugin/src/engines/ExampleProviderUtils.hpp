@@ -12,7 +12,7 @@
 #include <hipdnn_plugin_sdk/PluginApiDataTypes.h>
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Find a device buffer by tensor UID in the provided array.
@@ -35,4 +35,4 @@ inline hipdnnPluginDeviceBuffer_t findDeviceBuffer(int64_t uid,
             + " not found in the provided device buffers.");
 }
 
-} // namespace example_plugin
+} // namespace example_provider

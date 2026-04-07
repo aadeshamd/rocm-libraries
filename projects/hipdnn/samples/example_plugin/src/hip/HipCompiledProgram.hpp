@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Concrete ICompiledProgram that compiles kernels via HIPRTC.
@@ -45,4 +45,4 @@ private:
     hipModule_t _module = nullptr;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

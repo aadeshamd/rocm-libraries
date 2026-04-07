@@ -7,7 +7,7 @@
 
 #include "hip/ICompiledProgram.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 class MockCompiledProgram : public ICompiledProgram
@@ -19,4 +19,4 @@ public:
                 (const, override));
 };
 
-} // namespace example_plugin
+} // namespace example_provider

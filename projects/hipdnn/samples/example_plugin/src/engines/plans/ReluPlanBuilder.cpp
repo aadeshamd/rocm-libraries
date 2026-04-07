@@ -12,7 +12,7 @@
 #include "ReluParams.hpp"
 #include "ReluPlan.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 ReluPlanBuilder::ReluPlanBuilder(const IKernelCompiler& compiler)
@@ -21,7 +21,7 @@ ReluPlanBuilder::ReluPlanBuilder(const IKernelCompiler& compiler)
 }
 
 bool ReluPlanBuilder::isApplicable(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const
 {
     using NodeAttributes = hipdnn_data_sdk::data_objects::NodeAttributes;
@@ -64,19 +64,19 @@ bool ReluPlanBuilder::isApplicable(
 }
 
 size_t ReluPlanBuilder::getMaxWorkspaceSize(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/,
-    const ExamplePluginSettings& /*executionSettings*/) const
+    const ExampleProviderSettings& /*executionSettings*/) const
 {
     // ReLU does not require workspace
     return 0;
 }
 
 void ReluPlanBuilder::initializeExecutionSettings(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-    ExamplePluginSettings& executionSettings) const
+    ExampleProviderSettings& executionSettings) const
 {
     // Read negative slope knob from engine config if present
     if(engineConfig.hasKnobSetting("example.relu.negative_slope"))
@@ -88,10 +88,10 @@ void ReluPlanBuilder::initializeExecutionSettings(
 }
 
 void ReluPlanBuilder::buildPlan(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
     [[maybe_unused]] const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-    ExamplePluginContext& executionContext) const
+    ExampleProviderContext& executionContext) const
 {
     // Extract tensor UIDs from the pointwise attributes
     const auto& node = opGraph.getNode(0);
@@ -142,7 +142,7 @@ void ReluPlanBuilder::buildPlan(
 }
 
 std::vector<hipdnn_data_sdk::data_objects::KnobT> ReluPlanBuilder::getCustomKnobs(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/) const
 {
     std::vector<hipdnn_data_sdk::data_objects::KnobT> knobs;
@@ -166,4 +166,4 @@ std::vector<hipdnn_data_sdk::data_objects::KnobT> ReluPlanBuilder::getCustomKnob
     return knobs;
 }
 
-} // namespace example_plugin
+} // namespace example_provider

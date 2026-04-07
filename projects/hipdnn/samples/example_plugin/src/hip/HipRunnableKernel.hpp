@@ -8,7 +8,7 @@
 #include <hip/hip_runtime_api.h>
 #include <string>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Concrete IRunnableKernel wrapping a hipFunction_t.
@@ -39,4 +39,4 @@ private:
     unsigned int _sharedMemBytes = 0;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

@@ -7,7 +7,7 @@
 
 #include "hip/IKernelCompiler.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 class MockKernelCompiler : public IKernelCompiler
@@ -19,4 +19,4 @@ public:
                 (const, override));
 };
 
-} // namespace example_plugin
+} // namespace example_provider

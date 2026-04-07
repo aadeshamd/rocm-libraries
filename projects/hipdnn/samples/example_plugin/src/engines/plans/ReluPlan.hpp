@@ -14,13 +14,13 @@
 
 #include <hipdnn_plugin_sdk/interfaces/IPlan.hpp>
 
-#include "ExamplePluginHandle.hpp"
+#include "ExampleProviderHandle.hpp"
 #include "hip/ICompiledProgram.hpp"
 #include "hip/IRunnableKernel.hpp"
 
 #include "ReluParams.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 class IKernelCompiler;
@@ -29,7 +29,7 @@ class IKernelCompiler;
 ///
 /// Compiles and launches a HIP kernel that applies the ReLU activation
 /// function (with optional leaky negative slope) to a float tensor.
-class ReluPlan : public hipdnn_plugin_sdk::IPlan<ExamplePluginHandle>
+class ReluPlan : public hipdnn_plugin_sdk::IPlan<ExampleProviderHandle>
 {
 public:
     explicit ReluPlan(ReluParams&& params);
@@ -38,9 +38,9 @@ public:
 
     void compile(const IKernelCompiler& kernelCompiler);
 
-    size_t getWorkspaceSize(const ExamplePluginHandle& handle) const override;
+    size_t getWorkspaceSize(const ExampleProviderHandle& handle) const override;
 
-    void execute(const ExamplePluginHandle& handle,
+    void execute(const ExampleProviderHandle& handle,
                  const hipdnnPluginDeviceBuffer_t* deviceBuffers,
                  uint32_t numDeviceBuffers,
                  void* workspace) const override;
@@ -52,4 +52,4 @@ private:
     std::unique_ptr<IRunnableKernel> _kernel;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

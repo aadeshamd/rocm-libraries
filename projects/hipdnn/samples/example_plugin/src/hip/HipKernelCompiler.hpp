@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Concrete IKernelCompiler that compiles kernels using HIPRTC.
@@ -59,4 +59,4 @@ private:
     std::string _offloadArchOption;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

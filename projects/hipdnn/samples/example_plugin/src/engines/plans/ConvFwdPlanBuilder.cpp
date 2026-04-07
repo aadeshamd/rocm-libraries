@@ -11,7 +11,7 @@
 #include "ConvFwdParams.hpp"
 #include "ConvFwdPlan.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 static constexpr int64_t kDefaultBlockSize = 256;
@@ -22,7 +22,7 @@ ConvFwdPlanBuilder::ConvFwdPlanBuilder(const IKernelCompiler& compiler)
 }
 
 bool ConvFwdPlanBuilder::isApplicable(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const
 {
     using NodeAttributes = hipdnn_data_sdk::data_objects::NodeAttributes;
@@ -78,28 +78,28 @@ bool ConvFwdPlanBuilder::isApplicable(
 }
 
 size_t ConvFwdPlanBuilder::getMaxWorkspaceSize(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/,
-    const ExamplePluginSettings& /*executionSettings*/) const
+    const ExampleProviderSettings& /*executionSettings*/) const
 {
     // The convolution kernel in this example does not require a workspace.
     return 0;
 }
 
 void ConvFwdPlanBuilder::initializeExecutionSettings(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& /*engineConfig*/,
-    ExamplePluginSettings& /*executionSettings*/) const
+    ExampleProviderSettings& /*executionSettings*/) const
 {
     // No execution settings to initialize for ConvFwd
 }
 
 void ConvFwdPlanBuilder::buildPlan(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
     [[maybe_unused]] const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-    ExamplePluginContext& executionContext) const
+    ExampleProviderContext& executionContext) const
 {
     const auto& node = opGraph.getNode(0);
     const auto* attrs = node.attributes_as_ConvolutionFwdAttributes();
@@ -222,7 +222,7 @@ void ConvFwdPlanBuilder::buildPlan(
 }
 
 std::vector<hipdnn_data_sdk::data_objects::KnobT> ConvFwdPlanBuilder::getCustomKnobs(
-    const ExamplePluginHandle& /*handle*/,
+    const ExampleProviderHandle& /*handle*/,
     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& /*opGraph*/) const
 {
     std::vector<hipdnn_data_sdk::data_objects::KnobT> knobs;
@@ -247,4 +247,4 @@ std::vector<hipdnn_data_sdk::data_objects::KnobT> ConvFwdPlanBuilder::getCustomK
     return knobs;
 }
 
-} // namespace example_plugin
+} // namespace example_provider

@@ -6,7 +6,7 @@
 #include <array>
 #include <hip/hip_runtime_api.h>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Interface for a runnable GPU kernel.
@@ -35,4 +35,4 @@ protected:
     virtual void launchImpl(hipStream_t stream, void** kernelParams) const = 0;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

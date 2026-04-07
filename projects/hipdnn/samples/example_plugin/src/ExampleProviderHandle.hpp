@@ -13,12 +13,12 @@
 #include <memory>
 #include <unordered_map>
 
-#include "ExamplePluginContext.hpp"
-#include "ExamplePluginSettings.hpp"
+#include "ExampleProviderContext.hpp"
+#include "ExampleProviderSettings.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
-class ExamplePluginContainer;
+class ExampleProviderContainer;
 }
 
 // TEMPLATE ADAPTATION: Copy this file and rename the class. The stream management and FlatBuffer
@@ -29,12 +29,12 @@ class ExamplePluginContainer;
 ///
 /// Inherits from HipdnnEnginePluginHandle for opaque pointer compatibility.
 /// Manages the HIP stream, plugin container, and detached FlatBuffers buffers.
-struct ExamplePluginHandle : HipdnnEnginePluginHandle
+struct ExampleProviderHandle : HipdnnEnginePluginHandle
 {
 public:
-    ExamplePluginHandle() = default;
+    ExampleProviderHandle() = default;
 
-    ~ExamplePluginHandle() override = default;
+    ~ExampleProviderHandle() override = default;
 
     void setStream(hipStream_t stream)
     {
@@ -46,15 +46,15 @@ public:
         return _stream;
     }
 
-    std::shared_ptr<example_plugin::ExamplePluginContainer> container;
+    std::shared_ptr<example_provider::ExampleProviderContainer> container;
 
-    // Defined in ExamplePluginHandle.cpp to avoid circular dependency
+    // Defined in ExampleProviderHandle.cpp to avoid circular dependency
     hipdnn_plugin_sdk::
-        EngineManager<ExamplePluginHandle, ExamplePluginSettings, ExamplePluginContext>&
+        EngineManager<ExampleProviderHandle, ExampleProviderSettings, ExampleProviderContext>&
         getEngineManager();
 
     // When requested by the user, engine details are serialized as a
-    // FlatBuffer (ExamplePluginEngine::getDetails()) and a pointer to the heap
+    // FlatBuffer (ExampleProviderEngine::getDetails()) and a pointer to the heap
     // memory for the completed FlatBuffer is returned to the backend. The
     // Flatbuffer memory needs to remain allocated until the user releases the
     // engine details, at which point the FlatBuffer object can be destroyed.

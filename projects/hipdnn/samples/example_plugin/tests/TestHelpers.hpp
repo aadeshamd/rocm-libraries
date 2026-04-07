@@ -22,7 +22,7 @@
 #include <hipdnn_data_sdk/flatbuffer_utilities/EngineConfigWrapper.hpp>
 #include <hipdnn_data_sdk/flatbuffer_utilities/GraphWrapper.hpp>
 
-namespace example_plugin::test_helpers
+namespace example_provider::test_helpers
 {
 
 /// Build a single-node pointwise RELU_FWD graph with input and output tensors.
@@ -349,4 +349,4 @@ inline flatbuffers::FlatBufferBuilder createEngineConfig(int64_t engineId)
     return builder;
 }
 
-} // namespace example_plugin::test_helpers
+} // namespace example_provider::test_helpers

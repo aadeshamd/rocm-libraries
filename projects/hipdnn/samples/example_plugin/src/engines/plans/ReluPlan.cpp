@@ -6,10 +6,10 @@
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
 
-#include "engines/ExamplePluginUtils.hpp"
+#include "engines/ExampleProviderUtils.hpp"
 #include "hip/IKernelCompiler.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 ReluPlan::ReluPlan(ReluParams&& params)
@@ -25,12 +25,12 @@ void ReluPlan::compile(const IKernelCompiler& kernelCompiler)
     _kernel = _compiledProgram->getRunnableKernel("relu_forward_kernel");
 }
 
-size_t ReluPlan::getWorkspaceSize(const ExamplePluginHandle& /*handle*/) const
+size_t ReluPlan::getWorkspaceSize(const ExampleProviderHandle& /*handle*/) const
 {
     return 0;
 }
 
-void ReluPlan::execute(const ExamplePluginHandle& /*handle*/,
+void ReluPlan::execute(const ExampleProviderHandle& /*handle*/,
                        const hipdnnPluginDeviceBuffer_t* deviceBuffers,
                        uint32_t numDeviceBuffers,
                        void* /*workspace*/) const
@@ -52,4 +52,4 @@ void ReluPlan::execute(const ExamplePluginHandle& /*handle*/,
     _kernel->launch(nullptr, input, output, numElementsU, negSlope);
 }
 
-} // namespace example_plugin
+} // namespace example_provider

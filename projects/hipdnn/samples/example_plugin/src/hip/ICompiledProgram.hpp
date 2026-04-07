@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Interface for a compiled GPU program (module).
@@ -24,4 +24,4 @@ public:
         getRunnableKernel(const std::string& kernelFunctionName) const = 0;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

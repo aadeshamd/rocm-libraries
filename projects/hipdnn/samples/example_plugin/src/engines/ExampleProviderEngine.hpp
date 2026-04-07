@@ -6,11 +6,11 @@
 #include <memory>
 #include <vector>
 
-#include "ExamplePluginHandle.hpp"
+#include "ExampleProviderHandle.hpp"
 #include <hipdnn_plugin_sdk/interfaces/IEngine.hpp>
 #include <hipdnn_plugin_sdk/interfaces/IPlanBuilder.hpp>
 
-namespace example_plugin
+namespace example_provider
 {
 
 // TEMPLATE ADAPTATION: Copy as-is and rename the class. This generic engine coordinator delegates
@@ -24,44 +24,44 @@ namespace example_plugin
 /// reporting, workspace sizing, and plan creation) to them. Typically,
 /// customized behavior can be added by writing your own PlanBuilder,
 /// not by modifying this class.
-class ExamplePluginEngine : public hipdnn_plugin_sdk::IEngine<ExamplePluginHandle,
-                                                              ExamplePluginSettings,
-                                                              ExamplePluginContext>
+class ExampleProviderEngine : public hipdnn_plugin_sdk::IEngine<ExampleProviderHandle,
+                                                                ExampleProviderSettings,
+                                                                ExampleProviderContext>
 {
 public:
-    explicit ExamplePluginEngine(int64_t id);
+    explicit ExampleProviderEngine(int64_t id);
 
     int64_t id() const override;
 
-    bool isApplicable(ExamplePluginHandle& handle,
+    bool isApplicable(ExampleProviderHandle& handle,
                       const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph) const override;
 
-    void getDetails(ExamplePluginHandle& handle,
+    void getDetails(ExampleProviderHandle& handle,
                     const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
                     hipdnnPluginConstData_t& detailsOut) const override;
 
     size_t getMaxWorkspaceSize(
-        const ExamplePluginHandle& handle,
+        const ExampleProviderHandle& handle,
         const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
         const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig) const override;
 
     void initializeExecutionContext(
-        const ExamplePluginHandle& handle,
+        const ExampleProviderHandle& handle,
         const hipdnn_data_sdk::flatbuffer_utilities::IGraph& opGraph,
         const hipdnn_data_sdk::flatbuffer_utilities::IEngineConfig& engineConfig,
-        ExamplePluginContext& executionContext) const override;
+        ExampleProviderContext& executionContext) const override;
 
     void addPlanBuilder(
-        std::unique_ptr<hipdnn_plugin_sdk::IPlanBuilder<ExamplePluginHandle,
-                                                        ExamplePluginSettings,
-                                                        ExamplePluginContext>> planBuilder);
+        std::unique_ptr<hipdnn_plugin_sdk::IPlanBuilder<ExampleProviderHandle,
+                                                        ExampleProviderSettings,
+                                                        ExampleProviderContext>> planBuilder);
 
 private:
     int64_t _id;
-    std::vector<std::unique_ptr<hipdnn_plugin_sdk::IPlanBuilder<ExamplePluginHandle,
-                                                                ExamplePluginSettings,
-                                                                ExamplePluginContext>>>
+    std::vector<std::unique_ptr<hipdnn_plugin_sdk::IPlanBuilder<ExampleProviderHandle,
+                                                                ExampleProviderSettings,
+                                                                ExampleProviderContext>>>
         _planBuilders;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

@@ -6,10 +6,10 @@
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
 
-#include "engines/ExamplePluginUtils.hpp"
+#include "engines/ExampleProviderUtils.hpp"
 #include "hip/IKernelCompiler.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 ConvFwdPlan::ConvFwdPlan(ConvFwdParams&& params)
@@ -25,12 +25,12 @@ void ConvFwdPlan::compile(const IKernelCompiler& kernelCompiler)
     _kernel = _compiledProgram->getRunnableKernel("conv_forward_naive_kernel");
 }
 
-size_t ConvFwdPlan::getWorkspaceSize(const ExamplePluginHandle& /*handle*/) const
+size_t ConvFwdPlan::getWorkspaceSize(const ExampleProviderHandle& /*handle*/) const
 {
     return 0;
 }
 
-void ConvFwdPlan::execute(const ExamplePluginHandle& /*handle*/,
+void ConvFwdPlan::execute(const ExampleProviderHandle& /*handle*/,
                           const hipdnnPluginDeviceBuffer_t* deviceBuffers,
                           uint32_t numDeviceBuffers,
                           void* /*workspace*/) const
@@ -85,4 +85,4 @@ void ConvFwdPlan::execute(const ExamplePluginHandle& /*handle*/,
                     strideW);
 }
 
-} // namespace example_plugin
+} // namespace example_provider

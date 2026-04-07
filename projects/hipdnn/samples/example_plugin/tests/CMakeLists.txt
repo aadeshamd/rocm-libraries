@@ -38,8 +38,8 @@ foreach(target ${GTEST_TARGETS})
 endforeach()
 
 add_executable(
-    example_plugin_tests
-    TestExamplePluginContainer.cpp
+    example_provider_tests
+    TestExampleProviderContainer.cpp
     TestReluPlanBuilder.cpp
     TestReluPlan.cpp
     TestConvFwdPlanBuilder.cpp
@@ -47,20 +47,20 @@ add_executable(
 )
 
 target_link_libraries(
-    example_plugin_tests
+    example_provider_tests
     PRIVATE
         GTest::gtest
         GTest::gtest_main
         GTest::gmock
-        example_plugin_private
+        example_provider_private
 )
 
 target_include_directories(
-    example_plugin_tests
+    example_provider_tests
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
 include(GoogleTest)
-gtest_discover_tests(example_plugin_tests)
+gtest_discover_tests(example_provider_tests)

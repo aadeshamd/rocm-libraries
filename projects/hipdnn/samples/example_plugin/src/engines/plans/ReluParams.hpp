@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Parameters for the ReLU forward plan.
@@ -22,4 +22,4 @@ struct ReluParams
     double negativeSlope; // Slope for negative inputs (0.0 = standard ReLU, >0 = leaky ReLU).
 };
 
-} // namespace example_plugin
+} // namespace example_provider

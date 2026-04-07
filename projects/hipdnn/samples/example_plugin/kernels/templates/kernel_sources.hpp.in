@@ -33,8 +33,8 @@
 @KERNEL_DECLARATIONS@
 // Kernel declarations generation end
 
-namespace example_plugin {
+namespace example_provider {
 
 std::string_view getKernelSrc(const char* name);
 
-} // namespace example_plugin
+} // namespace example_provider

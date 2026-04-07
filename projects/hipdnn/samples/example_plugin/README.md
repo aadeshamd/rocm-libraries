@@ -31,7 +31,7 @@ configure time and compiled at runtime by HIPRTC. No GPU compiler (`hipcc`,
 ## Directory Structure
 
 ```
-example_plugin/
+example_provider/
 ├── CMakeLists.txt                       # Root CMake: project options, dependencies
 ├── README.md                            # This file
 ├── kernels/                             # GPU kernel source files (embedded at configure time)
@@ -51,11 +51,11 @@ example_plugin/
 │       └── ConvForwardNaive.cpp         # Naive ConvFwd GPU kernel (~35 lines)
 ├── src/
 │   ├── CMakeLists.txt                   # OBJECT, static, and shared library targets
-│   ├── ExamplePluginPublic.cpp          # C entry points (5 macros + EnginePluginImpl.inl)
-│   ├── ExamplePluginContainer.hpp/cpp   # Engine registration and EngineManager
-│   ├── ExamplePluginHandle.hpp/cpp      # Plugin handle (stream, container reference)
-│   ├── ExamplePluginContext.hpp         # Execution context
-│   ├── ExamplePluginSettings.hpp        # Execution settings (reluNegativeSlope)
+│   ├── ExampleProviderPublic.cpp          # C entry points (5 macros + EnginePluginImpl.inl)
+│   ├── ExampleProviderContainer.hpp/cpp   # Engine registration and EngineManager
+│   ├── ExampleProviderHandle.hpp/cpp      # Plugin handle (stream, container reference)
+│   ├── ExampleProviderContext.hpp         # Execution context
+│   ├── ExampleProviderSettings.hpp        # Execution settings (reluNegativeSlope)
 │   ├── hip/                             # HIPRTC infrastructure (DI interfaces + impls)
 │   │   ├── IKernelCompiler.hpp          # Interface: compile(filename, options)
 │   │   ├── ICompiledProgram.hpp         # Interface: getRunnableKernel(name)
@@ -65,8 +65,8 @@ example_plugin/
 │   │   ├── HipCompiledProgram.hpp/cpp   # Concrete ICompiledProgram (HIPRTC compilation + module)
 │   │   └── HipRunnableKernel.hpp/cpp    # Concrete IRunnableKernel (hipFunction_t)
 │   └── engines/
-│       ├── ExamplePluginEngine.hpp/cpp  # Engine: owns PlanBuilders, delegates isApplicable
-│       ├── ExamplePluginUtils.hpp       # Utility: UID-to-buffer lookup
+│       ├── ExampleProviderEngine.hpp/cpp  # Engine: owns PlanBuilders, delegates isApplicable
+│       ├── ExampleProviderUtils.hpp       # Utility: UID-to-buffer lookup
 │       └── plans/
 │           ├── ReluParams.hpp           # ReLU plan parameter struct
 │           ├── ReluPlanBuilder.hpp/cpp  # PlanBuilder: graph matching for ReLU_FWD
@@ -81,19 +81,19 @@ example_plugin/
 │   │   ├── MockKernelCompiler.hpp
 │   │   ├── MockCompiledProgram.hpp
 │   │   └── MockRunnableKernel.hpp
-│   ├── TestExamplePluginContainer.cpp
+│   ├── TestExampleProviderContainer.cpp
 │   ├── TestReluPlanBuilder.cpp
 │   ├── TestReluPlan.cpp
 │   ├── TestConvFwdPlanBuilder.cpp
 │   └── TestConvFwdPlan.cpp
 └── sample/                              # Demo app + acceptance test
     ├── CMakeLists.txt
-    └── ExamplePluginSample.cpp
+    └── ExampleProviderSample.cpp
 ```
 
 ## Build Instructions
 
-Run these commands from the example_plugin folder.
+Run these commands from the example_provider folder.
 
 ### Linux (GCC)
 
@@ -111,16 +111,16 @@ ctest --test-dir build
 Run the sample application (requires GPU for full execution):
 
 ```bash
-ctest --test-dir build -R example_plugin_sample
+ctest --test-dir build -R example_provider_sample
 ```
 
 The tests and sample can also be run directly:
 
 ```bash
-./build/bin/example_plugin_tests
+./build/bin/example_provider_tests
 ```
 ```bash
-./build/bin/example_plugin_sample
+./build/bin/example_provider_sample
 ```
 
 Install the plugin:
@@ -142,15 +142,15 @@ ctest --test-dir build --build-config Release
 
 | Option | Default | Description |
 |---|---|---|
-| `HIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS` | `ON` | Build unit tests (no GPU required) |
-| `HIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE` | `ON` | Build sample application (serves as acceptance test via `ctest`) |
+| `HIPDNN_EXAMPLE_PROVIDER_BUILD_UNIT_TESTS` | `ON` | Build unit tests (no GPU required) |
+| `HIPDNN_EXAMPLE_PROVIDER_BUILD_SAMPLE` | `ON` | Build sample application (serves as acceptance test via `ctest`) |
 | `ROCM_PATH` | `/opt/rocm` | ROCm installation path (for RPATH and library discovery) |
 
 To build only the plugin library (no tests or sample):
 
 ```bash
-cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS=OFF \
-         -DHIPDNN_EXAMPLE_PLUGIN_BUILD_SAMPLE=OFF
+cmake .. -DHIPDNN_EXAMPLE_PROVIDER_BUILD_UNIT_TESTS=OFF \
+         -DHIPDNN_EXAMPLE_PROVIDER_BUILD_SAMPLE=OFF
 ```
 
 ## Architecture
@@ -158,7 +158,7 @@ cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS=OFF \
 A hipDNN plugin is a shared library that implements a C API defined by the
 plugin SDK. The SDK provides `EnginePluginImpl.inl`, which generates all
 required C entry points when five macros are defined in
-`ExamplePluginPublic.cpp`:
+`ExampleProviderPublic.cpp`:
 
 - `HIPDNN_PLUGIN_NAME` -- display name string
 - `HIPDNN_PLUGIN_VERSION` -- version string
@@ -173,10 +173,10 @@ Container
 ├── Owns EngineManager<Handle, Settings, Context>
 ├── Owns IKernelCompiler (HipKernelCompiler)
 ├── Creates engines defined via getEngineDefinitions()
-│   ├── Engine (EXAMPLE_PLUGIN_RELU_ENGINE)
+│   ├── Engine (EXAMPLE_PROVIDER_RELU_ENGINE)
 │   │   └── PlanBuilder (ReluPlanBuilder)
 │   │       └── Plan (ReluPlan)
-│   └── Engine (EXAMPLE_PLUGIN_CONV_FWD_ENGINE)
+│   └── Engine (EXAMPLE_PROVIDER_CONV_FWD_ENGINE)
 │       └── PlanBuilder (ConvFwdPlanBuilder)
 │           └── Plan (ConvFwdPlan)
 └── copyEngineIds() -- returns registered engine IDs to hipDNN
@@ -302,17 +302,17 @@ enabling unit tests to run without GPU hardware:
    identifies the technology or backend your plugin provides (e.g.,
    `rocblas_conv`, `custom_gemm`, `your_name`). This name will be
    used throughout the plugin as:
-   - **Class prefix**: `ExamplePlugin*` becomes `YourName*` (e.g.,
+   - **Class prefix**: `ExampleProvider*` becomes `YourName*` (e.g.,
      `YourNameContainer`, `YourNameHandle`, `YourNameEngine`)
-   - **Namespace**: `example_plugin` becomes `your_name`
-   - **Engine identifiers**: `EXAMPLE_PLUGIN_RELU_ENGINE` becomes
+   - **Namespace**: `example_provider` becomes `your_name`
+   - **Engine identifiers**: `EXAMPLE_PROVIDER_RELU_ENGINE` becomes
      `YOUR_NAME_xxx_ENGINE` (e.g., `YOUR_NAME_CONV_ENGINE`).
      These names are visible to applications that select engines, so choose
      something meaningful.
    - **Plugin display name**: The `HIPDNN_PLUGIN_NAME` macro value (e.g.,
      `"Your Name xxx engine"`)
 
-2. **Copy and rename the directory**: Copy `example_plugin/` to your new
+2. **Copy and rename the directory**: Copy `example_provider/` to your new
    plugin directory (e.g., `your_name_provider/`).
 
 3. **Verify the build on your system**: Before making any code changes, run
@@ -323,14 +323,14 @@ enabling unit tests to run without GPU hardware:
    ensures that any issues encountered later are caused by changes made to the
    code or project files and not by the build & test environment.
 
-4. **Rename classes**: Replace all `ExamplePlugin*` class names with your
+4. **Rename classes**: Replace all `ExampleProvider*` class names with your
    plugin prefix (e.g., `YourNameKernel*`). This affects `Container`,
    `Handle`, `Context`, `Settings`, `Engine`, and `Public`.
 
-5. **Update the namespace**: Change the `example_plugin` namespace to your
+5. **Update the namespace**: Change the `example_provider` namespace to your
    plugin's namespace throughout all source files.
 
-6. **Update the 5 macros** in `ExamplePluginPublic.cpp`: Set
+6. **Update the 5 macros** in `ExampleProviderPublic.cpp`: Set
    `HIPDNN_PLUGIN_NAME` to your plugin's display name and generate new unique
    values for the four type macros.
 
@@ -351,7 +351,7 @@ enabling unit tests to run without GPU hardware:
    `kernels/CMakeLists.txt` with your kernel filenames. Update the source
    file list in `src/CMakeLists.txt` with your `.cpp` files.
 
-10. **Register your engines**: Update `ExamplePluginContainer.cpp` to register
+10. **Register your engines**: Update `ExampleProviderContainer.cpp` to register
     your engines via `HIPDNN_REGISTER_ENGINE` with unique engine names and add
     lambdas to create the new engines:
 
@@ -361,7 +361,7 @@ enabling unit tests to run without GPU hardware:
     // In getEngineDefinitions():
     {YOUR_ENGINE_ID,
      [](const IKernelCompiler& compiler) {
-         auto engine = std::make_unique<ExamplePluginEngine>(YOUR_ENGINE_ID);
+         auto engine = std::make_unique<ExampleProviderEngine>(YOUR_ENGINE_ID);
          engine->addPlanBuilder(std::make_unique<YourPlanBuilder>(compiler));
          return engine;
      }},
@@ -378,7 +378,7 @@ and `TEMPLATE REFERENCE` comment markers in the source files for per-file guidan
 
 | Files | Marker | What to Do |
 |-------|--------|------------|
-| `ExamplePluginPublic.cpp`, `ExamplePluginContainer.hpp/cpp`, `ExamplePluginHandle.hpp/cpp`, `ExamplePluginContext.hpp`, `ExamplePluginSettings.hpp`, `ExamplePluginEngine.hpp/cpp`, `ExamplePluginUtils.hpp` | `TEMPLATE ADAPTATION` | Rename `ExamplePlugin` to `YourPlugin`. Adjust class names, namespace, and includes. These files are framework plumbing; the structure stays the same. |
+| `ExampleProviderPublic.cpp`, `ExampleProviderContainer.hpp/cpp`, `ExampleProviderHandle.hpp/cpp`, `ExampleProviderContext.hpp`, `ExampleProviderSettings.hpp`, `ExampleProviderEngine.hpp/cpp`, `ExampleProviderUtils.hpp` | `TEMPLATE ADAPTATION` | Rename `ExampleProvider` to `YourPlugin`. Adjust class names, namespace, and includes. These files are framework plumbing; the structure stays the same. |
 | `hip/IKernelCompiler.hpp`, `hip/ICompiledProgram.hpp`, `hip/IRunnableKernel.hpp`, `hip/HipKernelCompiler.hpp`, `hip/HipCompiledProgram.hpp/cpp`, `hip/HipRunnableKernel.hpp/cpp`, `hip/HipUtils.hpp` | *(none)* | Update namespace only. These implement the HIPRTC compilation pipeline and do not contain operation-specific logic. |
 | `engines/plans/ReluPlanBuilder.hpp/cpp`, `engines/plans/ReluPlan.hpp/cpp`, `engines/plans/ReluParams.hpp` | `TEMPLATE REFERENCE` | Study to learn the PlanBuilder/Plan pattern, then replace with your own operation's PlanBuilder, Plan, and Params. Key methods: `isApplicable()`, `getCustomKnobs()`, `initializeExecutionSettings()`, `buildPlan()`, `compile()`, `execute()`. |
 | `engines/plans/ConvFwdPlanBuilder.hpp/cpp`, `engines/plans/ConvFwdPlan.hpp/cpp`, `engines/plans/ConvFwdParams.hpp` | `TEMPLATE REFERENCE` | Second example of the same pattern. Compare with ReLU to see how different operations handle graph matching, parameters, and kernel launch. |
@@ -387,7 +387,7 @@ and `TEMPLATE REFERENCE` comment markers in the source files for per-file guidan
 | `tests/TestReluPlanBuilder.cpp`, `tests/TestReluPlan.cpp`, `tests/TestConvFwdPlanBuilder.cpp`, `tests/TestConvFwdPlan.cpp` | `TEMPLATE REFERENCE` | Study the testing patterns, then write equivalent tests for your operations. |
 | `tests/TestHelpers.hpp` | `TEMPLATE ADAPTATION` | As preferred, replace `createReluFwdGraph()` / `createConvFwdGraph()` with helpers that build your operation's FlatBuffer graphs. Keep `createEngineConfig()`. |
 | `tests/mocks/MockKernelCompiler.hpp`, `tests/mocks/MockCompiledProgram.hpp`, `tests/mocks/MockRunnableKernel.hpp` | *(none)* | As preferred, copy into your test directory. Update namespace only. These mocks implement the interfaces for GPU-free unit testing. |
-| `sample/ExamplePluginSample.cpp` | `TEMPLATE ADAPTATION` | As preferred, adapt scenarios to exercise your operations. Keep the plugin loading and engine selection patterns; replace the graph construction and verification logic. This file can alternatively be replaced with a suite of integration tests or a custom application. |
+| `sample/ExampleProviderSample.cpp` | `TEMPLATE ADAPTATION` | As preferred, adapt scenarios to exercise your operations. Keep the plugin loading and engine selection patterns; replace the graph construction and verification logic. This file can alternatively be replaced with a suite of integration tests or a custom application. |
 
 ## Testing Your Plugin
 
@@ -421,7 +421,7 @@ See `tests/TestReluPlan.cpp` for the complete pattern.
 
 ### Acceptance Testing
 
-The sample application (`sample/ExamplePluginSample.cpp`) serves as the
+The sample application (`sample/ExampleProviderSample.cpp`) serves as the
 acceptance test. It is registered as a `ctest` and verifies end-to-end
 correctness on GPU hardware. When writing a new plugin, you can adapt the
 sample scenarios to exercise your operations with correctness verification.
@@ -516,8 +516,8 @@ auto graph = std::make_shared<Graph>();
 // ... configure graph ...
 
 // Select engine by name (string is hashed to the engine ID at runtime)
-graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_RELU_ENGINE");
-// or: graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_CONV_FWD_ENGINE");
+graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_RELU_ENGINE");
+// or: graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_CONV_FWD_ENGINE");
 
 graph->build(handle);
 ```
@@ -540,15 +540,15 @@ The plugin `.so` is installed to
 `${CMAKE_INSTALL_PREFIX}/lib/hipdnn_plugins/engines/` by default (configurable
 via `HIPDNN_RELATIVE_INSTALL_PLUGIN_ENGINE_DIR`).
 
-See `sample/ExamplePluginSample.cpp` for a complete example showing plugin
+See `sample/ExampleProviderSample.cpp` for a complete example showing plugin
 loading, engine selection, knob modification, and correctness verification.
 
 ## Quick Checklist
 
-- [ ] Copy and rename `example_plugin/` directory
+- [ ] Copy and rename `example_provider/` directory
 - [ ] Perform a preliminary build and test runs to verify environment.
-- [ ] Rename all `ExamplePlugin*` classes to `YourPlugin*`
-- [ ] Update namespace from `example_plugin`
+- [ ] Rename all `ExampleProvider*` classes to `YourPlugin*`
+- [ ] Update namespace from `example_provider`
 - [ ] Update the 5 macros in `Public.cpp`
 - [ ] Write your GPU kernel(s) in `kernels/`
 - [ ] Update `KERNEL_FILES` in `kernels/CMakeLists.txt`
@@ -556,7 +556,7 @@ loading, engine selection, knob modification, and correctness verification.
 - [ ] Implement your Plan (`compile`, `execute`, `getWorkspaceSize`)
 - [ ] Create your Params struct
 - [ ] Register your engine (`HIPDNN_REGISTER_ENGINE`) and create in Container
-- [ ] Update `ExamplePluginSettings` with your settings fields
+- [ ] Update `ExampleProviderSettings` with your settings fields
 - [ ] Write unit tests for PlanBuilder and Plan
 - [ ] Create graph construction helpers in `TestHelpers.hpp`
 - [ ] Build and verify: `cmake --workflow --preset release`
@@ -626,7 +626,7 @@ from the user's application binary.
 The plugin project embeds RPATH in the `.so`:
 
 ```cmake
-set_target_properties(example_plugin PROPERTIES
+set_target_properties(example_provider PROPERTIES
     INSTALL_RPATH "${ROCM_PATH}/lib"
     INSTALL_RPATH_USE_LINK_PATH TRUE
     BUILD_WITH_INSTALL_RPATH TRUE
@@ -655,18 +655,18 @@ If the plugin fails to load silently (no engines from this plugin appear):
 
 1. Check library dependencies:
    ```bash
-   ldd build/src/libexample_plugin.so
+   ldd build/src/libexample_provider.so
    ```
    All dependencies should resolve. Look for `not found` entries.
 
 2. Trace the dynamic linker's search:
    ```bash
-   LD_DEBUG=libs your_application 2>&1 | grep example_plugin
+   LD_DEBUG=libs your_application 2>&1 | grep example_provider
    ```
 
 3. Verify RPATH is embedded:
    ```bash
-   readelf -d build/src/libexample_plugin.so | grep 'RPATH|RUNPATH'
+   readelf -d build/src/libexample_provider.so | grep 'RPATH|RUNPATH'
    ```
 
 ## Extending for Real-World Use

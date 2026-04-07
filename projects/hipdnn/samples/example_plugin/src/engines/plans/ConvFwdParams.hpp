@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-namespace example_plugin
+namespace example_provider
 {
 
 /// Parameters for the convolution forward plan.
@@ -32,4 +32,4 @@ struct ConvFwdParams
     int64_t blockSize; // HIP thread block size for the kernel launch.
 };
 
-} // namespace example_plugin
+} // namespace example_provider

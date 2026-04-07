@@ -12,13 +12,13 @@
 
 #include <hipdnn_plugin_sdk/interfaces/IPlan.hpp>
 
-#include "ExamplePluginHandle.hpp"
+#include "ExampleProviderHandle.hpp"
 #include "hip/ICompiledProgram.hpp"
 #include "hip/IRunnableKernel.hpp"
 
 #include "ConvFwdParams.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 class IKernelCompiler;
@@ -27,7 +27,7 @@ class IKernelCompiler;
 ///
 /// Compiles and launches a HIP kernel that computes a 2D forward
 /// convolution (cross-correlation) over NCHW float tensors.
-class ConvFwdPlan : public hipdnn_plugin_sdk::IPlan<ExamplePluginHandle>
+class ConvFwdPlan : public hipdnn_plugin_sdk::IPlan<ExampleProviderHandle>
 {
 public:
     explicit ConvFwdPlan(ConvFwdParams&& params);
@@ -36,9 +36,9 @@ public:
 
     void compile(const IKernelCompiler& kernelCompiler);
 
-    size_t getWorkspaceSize(const ExamplePluginHandle& handle) const override;
+    size_t getWorkspaceSize(const ExampleProviderHandle& handle) const override;
 
-    void execute(const ExamplePluginHandle& handle,
+    void execute(const ExampleProviderHandle& handle,
                  const hipdnnPluginDeviceBuffer_t* deviceBuffers,
                  uint32_t numDeviceBuffers,
                  void* workspace) const override;
@@ -50,4 +50,4 @@ private:
     std::unique_ptr<IRunnableKernel> _kernel;
 };
 
-} // namespace example_plugin
+} // namespace example_provider

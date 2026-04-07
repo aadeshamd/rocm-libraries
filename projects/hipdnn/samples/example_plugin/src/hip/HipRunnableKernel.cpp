@@ -5,7 +5,7 @@
 
 #include "HipUtils.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 HipRunnableKernel::HipRunnableKernel(hipFunction_t function, const std::string& kernelName)
@@ -48,4 +48,4 @@ void HipRunnableKernel::launchImpl(hipStream_t stream, void** kernelParams) cons
                                     nullptr));
 }
 
-} // namespace example_plugin
+} // namespace example_provider

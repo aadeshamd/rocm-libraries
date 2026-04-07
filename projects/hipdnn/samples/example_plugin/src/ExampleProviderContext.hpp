@@ -6,22 +6,22 @@
 #include <hipdnn_plugin_sdk/ExecutionContextBase.hpp>
 #include <hipdnn_plugin_sdk/PluginBaseTypes.hpp>
 
-#include "ExamplePluginSettings.hpp"
+#include "ExampleProviderSettings.hpp"
 
 // TEMPLATE ADAPTATION: Copy and rename. This class inherits from the SDK's execution context
 // base classes and needs no operation-specific changes. The dual inheritance
 // (HipdnnEnginePluginExecutionContext + ExecutionContextBase) is required by the SDK.
 
 // Forward declaration
-struct ExamplePluginHandle;
+struct ExampleProviderHandle;
 
 /// Execution context for the example plugin.
 ///
 /// Inherits from:
 /// - HipdnnEnginePluginExecutionContext: opaque pointer compatibility
 /// - ExecutionContextBase: plan and settings storage
-struct ExamplePluginContext
+struct ExampleProviderContext
     : HipdnnEnginePluginExecutionContext,
-      hipdnn_plugin_sdk::ExecutionContextBase<ExamplePluginHandle, ExamplePluginSettings>
+      hipdnn_plugin_sdk::ExecutionContextBase<ExampleProviderHandle, ExampleProviderSettings>
 {
 };

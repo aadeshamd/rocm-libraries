@@ -7,7 +7,7 @@
 
 #include "hip/IRunnableKernel.hpp"
 
-namespace example_plugin
+namespace example_provider
 {
 
 class MockRunnableKernel : public IRunnableKernel
@@ -19,4 +19,4 @@ public:
     MOCK_METHOD(void, launchImpl, (hipStream_t stream, void** kernelParams), (const, override));
 };
 
-} // namespace example_plugin
+} // namespace example_provider
