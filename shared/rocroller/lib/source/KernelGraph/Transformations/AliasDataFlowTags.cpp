@@ -93,19 +93,6 @@ namespace rocRoller
                 return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
-            TagExtent::GroupKey TagExtent::groupKey() const
-            {
-                return std::make_tuple(memoryType, layoutType, dataType);
-            }
-
-            int TagExtent::totalElements() const
-            {
-                int size = 1;
-                for(int s : sizes)
-                    size *= s;
-                return size;
-            }
-
             std::string TagExtent::toString() const
             {
                 std::ostringstream msg;
@@ -210,9 +197,8 @@ namespace rocRoller
             {
                 bool found = false;
 
-                AssertFatal(groupKey() == inner.groupKey(),
-                            ShowValue(groupKey()),
-                            ShowValue(inner.groupKey()));
+                AssertFatal(
+                    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
 
                 auto itFits
@@ -422,10 +408,10 @@ namespace rocRoller
                 return false;
             }
 
-            std::map<TagExtent::GroupKey, std::list<TagExtent>>
+            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
-                std::map<TagExtent::GroupKey, std::list<TagExtent>> groupedExtents;
+                std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
 
                 ControlFlowRWTracer tracer(kgraph);
 
@@ -465,7 +451,7 @@ namespace rocRoller
                     if(!extent.empty() && extent.dataType != DataType::None
                        && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        groupedExtents[extent.groupKey()].push_back(std::move(extent));
+                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
                 }
                 return groupedExtents;
@@ -485,8 +471,7 @@ namespace rocRoller
                     {
                         for(auto inner = extents.begin(); inner != extents.end();)
                         {
-                            if(outer != inner && inner->totalElements() <= outer->totalElements()
-                               && inner->fitsWithin(kgraph, *outer))
+                            if(outer != inner && inner->fitsWithin(kgraph, *outer))
                             {
                                 foundAny = true;
                                 AssertFatal(!aliases.contains(inner->baseTag));
@@ -527,13 +512,13 @@ namespace rocRoller
 
                 std::map<int, int> aliases;
 
-                for(auto& [groupKey, extents] : groupedExtents)
+                for(auto& [typeKey, extents] : groupedExtents)
                 {
                     auto logger = Log::getLogger();
                     if(logger->should_log(LogLevel::Debug))
                     {
                         std::ostringstream msg;
-                        streamJoinTuple(msg, ", ", groupKey);
+                        streamJoinTuple(msg, ", ", typeKey);
 
                         logger->debug("Aliases for {{{}}} tags:", msg.str());
                         logger->debug("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");

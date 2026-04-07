@@ -64,7 +64,6 @@ namespace rocRoller
             struct TagExtent
             {
                 using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
-                using GroupKey    = std::tuple<MemoryType, LayoutType, DataType>;
 
                 int              baseTag = -1;
                 std::set<int>    tags;
@@ -77,8 +76,6 @@ namespace rocRoller
                 std::vector<GraphExtent> gaps;
 
                 CategoryKey typeKey() const;
-                GroupKey    groupKey() const;
-                int         totalElements() const;
 
                 std::string   toString() const;
                 std::string   orderInfo(KernelGraph const& kgraph) const;
@@ -122,7 +119,7 @@ namespace rocRoller
              * Gets all the extents for all the MacroTile tags in `kgraph`,
              * grouped by type & size.
              */
-            std::map<TagExtent::GroupKey, std::list<TagExtent>>
+            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph);
 
             /**
