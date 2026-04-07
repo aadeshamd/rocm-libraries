@@ -31,7 +31,7 @@
 // Prerequisites:
 //   - hipDNN installed
 //   - ROCm with HIPRTC and a compatible GPU (for GPU execution portions)
-//   - The example_provider shared library (built in the same CMake project)
+//   - The example_provider_plugin shared library (built in the same CMake project)
 
 #include <algorithm>
 #include <cmath>
@@ -227,7 +227,7 @@ static void printLoadedPlugins(hipdnnHandle_t handle)
     }
 }
 
-// Check whether the example_provider is present among loaded plugins.
+// Check whether the example_provider_plugin is present among loaded plugins.
 // Returns true if found, false otherwise.
 static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeLabel)
 {
@@ -242,7 +242,7 @@ static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeL
     bool found = false;
     for(const auto& path : paths)
     {
-        if(path.string().find("example_provider") != std::string::npos)
+        if(path.string().find("example_provider_plugin") != std::string::npos)
         {
             found = true;
             break;
@@ -251,8 +251,8 @@ static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeL
 
     if(!found)
     {
-        std::cerr << "  ERROR: example_provider not found among loaded plugins after " << modeLabel
-                  << "\n";
+        std::cerr << "  ERROR: example_provider_plugin not found among loaded plugins after "
+                  << modeLabel << "\n";
         return false;
     }
 

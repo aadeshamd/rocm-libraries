@@ -48,14 +48,14 @@ target_link_libraries(example_provider_private PUBLIC hipdnn_plugin_sdk hipdnn_d
 # Shared library: the actual plugin loaded at runtime by hipDNN.
 # Visibility is set to hidden so only the C entry points are exported.
 # =============================================================================
-add_library(example_provider SHARED $<TARGET_OBJECTS:example_provider_impl>)
-target_link_libraries(example_provider PRIVATE hipdnn_plugin_sdk hipdnn_data_sdk hip::host hiprtc::hiprtc)
+add_library(example_provider_plugin SHARED $<TARGET_OBJECTS:example_provider_impl>)
+target_link_libraries(example_provider_plugin PRIVATE hipdnn_plugin_sdk hipdnn_data_sdk hip::host hiprtc::hiprtc)
 
 if(NOT WIN32)
-    target_link_libraries(example_provider PRIVATE "-Xlinker --exclude-libs=ALL")
+    target_link_libraries(example_provider_plugin PRIVATE "-Xlinker --exclude-libs=ALL")
 endif()
 
-set_target_properties(example_provider PROPERTIES
+set_target_properties(example_provider_plugin PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     INSTALL_RPATH "${ROCM_PATH}/lib"
     INSTALL_RPATH_USE_LINK_PATH TRUE

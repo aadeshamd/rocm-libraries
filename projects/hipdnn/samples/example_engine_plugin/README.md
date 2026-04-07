@@ -626,7 +626,7 @@ from the user's application binary.
 The plugin project embeds RPATH in the `.so`:
 
 ```cmake
-set_target_properties(example_provider PROPERTIES
+set_target_properties(example_provider_plugin PROPERTIES
     INSTALL_RPATH "${ROCM_PATH}/lib"
     INSTALL_RPATH_USE_LINK_PATH TRUE
     BUILD_WITH_INSTALL_RPATH TRUE
@@ -655,18 +655,18 @@ If the plugin fails to load silently (no engines from this plugin appear):
 
 1. Check library dependencies:
    ```bash
-   ldd build/src/libexample_provider.so
+   ldd build/src/libexample_provider_plugin.so
    ```
    All dependencies should resolve. Look for `not found` entries.
 
 2. Trace the dynamic linker's search:
    ```bash
-   LD_DEBUG=libs your_application 2>&1 | grep example_provider
+   LD_DEBUG=libs your_application 2>&1 | grep example_provider_plugin
    ```
 
 3. Verify RPATH is embedded:
    ```bash
-   readelf -d build/src/libexample_provider.so | grep 'RPATH|RUNPATH'
+   readelf -d build/src/libexample_provider_plugin.so | grep 'RPATH|RUNPATH'
    ```
 
 ## Extending for Real-World Use
