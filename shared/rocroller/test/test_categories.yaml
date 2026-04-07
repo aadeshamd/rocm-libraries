@@ -12,10 +12,6 @@ test_categories:
       - "CommandTest.*"
       - "ComponentTest.*"
     exclude: &quick_exclude
-      - "AssertTest/GPU_AssertTest.GPU_Assert/28"
-      - "AssertTest/GPU_AssertTest.GPU_UnconditionalAssert/28"
-      - "AssertTest/GPU_AssertTest.GPU_Assert/29"
-      - "AssertTest/GPU_AssertTest.GPU_UnconditionalAssert/29"
       - "GPU_KernelTests/GPU_KernelTest.GPU_WholeKernel/1"
     labels:
       - "quick"
