@@ -8,6 +8,10 @@
 
 #include "ExamplePluginSettings.hpp"
 
+// TEMPLATE ADAPTATION: Copy and rename. This class inherits from the SDK's execution context
+// base classes and needs no operation-specific changes. The dual inheritance
+// (HipdnnEnginePluginExecutionContext + ExecutionContextBase) is required by the SDK.
+
 // Forward declaration
 struct ExamplePluginHandle;
 

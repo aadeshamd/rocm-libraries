@@ -1,11 +1,10 @@
 # hipDNN Example Plugin
 
 A self-contained example project that demonstrates how to build a hipDNN engine
-plugin from scratch.  It is designed for external developers (including non-AMD
-developers) who want to extend hipDNN with custom GPU-accelerated engine
-implementations.
+plugin from scratch. It is designed developers who want to extend hipDNN with
+custom GPU-accelerated engines.
 
-The plugin implements two GPU operations compiled at runtime via HIPRTC (HIP
+The example implements two GPU operations compiled at runtime via HIPRTC (HIP
 Runtime Compilation):
 
 - **ReLU forward** (pointwise): element-wise `max(0, x)` with a custom
@@ -18,15 +17,15 @@ Runtime Compilation):
 | Dependency | Purpose | Notes |
 |---|---|---|
 | CMake >= 3.20 | Build system | |
-| C++17 compiler | GCC/G++ (Linux) or MSVC (Windows) | No GPU compiler needed at build time |
+| C++17 compiler | GCC/G++ or MSVC | No GPU compiler needed at build time |
 | ROCm (HIP SDK + HIPRTC) | GPU kernel compilation and execution | `hipStream_t`, `hipMalloc`, HIPRTC APIs |
-| hipDNN (installed) | Plugin SDK, data SDK, frontend library | Installed at `/opt/rocm` |
+| hipDNN (installed) | Plugin SDK, data SDK, frontend library | Typically installed at `/opt/rocm` (Linux) |
 | GPU hardware | Runtime execution of HIPRTC-compiled kernels | Any ROCm-supported GPU |
 | Internet access | GTest is downloaded via CMake `FetchContent` | Only needed for the first build |
 
-The plugin C++ source code compiles with standard compilers (GCC, MSVC).  GPU
+The plugin C++ source code compiles with standard compilers (GCC, MSVC). GPU
 kernels are plain `.cpp` files that are embedded as string literals at CMake
-configure time and compiled at runtime by HIPRTC -- no GPU compiler (`hipcc`,
+configure time and compiled at runtime by HIPRTC. No GPU compiler (`hipcc`,
 `amdclang++`) is needed during the build.
 
 ## Directory Structure
@@ -37,11 +36,15 @@ example_plugin/
 ├── README.md                            # This file
 ├── kernels/                             # GPU kernel source files (embedded at configure time)
 │   ├── CMakeLists.txt                   # embed_kernel_sources() function
+│   ├── cmake/
+│   │   └── EmbedKernelSources.cmake     # CMake kernel embedding function
 │   ├── templates/                       # .in templates for kernel embedding
 │   │   ├── kernel_sources.cpp.in
 │   │   ├── kernel_sources.hpp.in
 │   │   ├── kernel_includes.cpp.in
 │   │   └── kernel_includes.hpp.in
+│   ├── common/
+│   │   └── IndexType.hpp                # Shared kernel header (embedded for HIPRTC #include)
 │   ├── relu/
 │   │   └── ReluForward.cpp              # ReLU GPU kernel (~10 lines)
 │   └── conv/
@@ -65,8 +68,10 @@ example_plugin/
 │       ├── ExamplePluginEngine.hpp/cpp  # Engine: owns PlanBuilders, delegates isApplicable
 │       ├── ExamplePluginUtils.hpp       # Utility: UID-to-buffer lookup
 │       └── plans/
+│           ├── ReluParams.hpp           # ReLU plan parameter struct
 │           ├── ReluPlanBuilder.hpp/cpp  # PlanBuilder: graph matching for ReLU_FWD
 │           ├── ReluPlan.hpp/cpp         # Plan: GPU ReLU execution via HIPRTC
+│           ├── ConvFwdParams.hpp        # ConvFwd plan parameter struct
 │           ├── ConvFwdPlanBuilder.hpp/cpp  # PlanBuilder: graph matching for ConvFwd
 │           └── ConvFwdPlan.hpp/cpp      # Plan: GPU ConvFwd execution via HIPRTC
 ├── tests/                               # Unit tests (GTest, no GPU required)
@@ -88,15 +93,16 @@ example_plugin/
 
 ## Build Instructions
 
+Run these commands from the example_plugin folder.
+
 ### Linux (GCC)
 
 ```bash
-mkdir build && cd build
-cmake .. -DCMAKE_PREFIX_PATH="/opt/rocm;/opt/rocm/hip"
-cmake --build .
+cmake -B build -DCMAKE_PREFIX_PATH="/opt/rocm"
+cmake --build build
 ```
 
-Run the unit tests (no GPU required):
+Run all tests, including the example sample app:
 
 ```bash
 ctest --test-dir build
@@ -108,8 +114,11 @@ Run the sample application (requires GPU for full execution):
 ctest --test-dir build -R example_plugin_sample
 ```
 
-The sample can also be run directly:
+The tests and sample can also be run directly:
 
+```bash
+./build/bin/example_plugin_tests
+```
 ```bash
 ./build/bin/example_plugin_sample
 ```
@@ -124,11 +133,9 @@ cmake --install build --prefix /opt/rocm
 ### Windows (MSVC)
 
 ```powershell
-mkdir build
-cd build
-cmake .. -DCMAKE_PREFIX_PATH="C:\rocm;C:\rocm\hip" -G "Visual Studio 17 2022"
-cmake --build . --config Release
-ctest --test-dir . --build-config Release
+cmake -B build -DCMAKE_PREFIX_PATH="C:\rocm" -G "Visual Studio 17 2022"
+cmake --build build --config Release
+ctest --test-dir build --build-config Release
 ```
 
 ### CMake Options
@@ -149,7 +156,7 @@ cmake .. -DHIPDNN_EXAMPLE_PLUGIN_BUILD_UNIT_TESTS=OFF \
 ## Architecture
 
 A hipDNN plugin is a shared library that implements a C API defined by the
-plugin SDK.  The SDK provides `EnginePluginImpl.inl`, which generates all
+plugin SDK. The SDK provides `EnginePluginImpl.inl`, which generates all
 required C entry points when five macros are defined in
 `ExamplePluginPublic.cpp`:
 
@@ -165,37 +172,35 @@ required C entry points when five macros are defined in
 Container
 ├── Owns EngineManager<Handle, Settings, Context>
 ├── Owns IKernelCompiler (HipKernelCompiler)
-├── Registers engines via getEngineDefinitions()
+├── Creates engines defined via getEngineDefinitions()
 │   ├── Engine (EXAMPLE_PLUGIN_RELU_ENGINE)
 │   │   └── PlanBuilder (ReluPlanBuilder)
-│   │       └── Plan (ReluPlan) -- HIPRTC-compiled GPU kernel
+│   │       └── Plan (ReluPlan)
 │   └── Engine (EXAMPLE_PLUGIN_CONV_FWD_ENGINE)
 │       └── PlanBuilder (ConvFwdPlanBuilder)
-│           └── Plan (ConvFwdPlan) -- HIPRTC-compiled GPU kernel
+│           └── Plan (ConvFwdPlan)
 └── copyEngineIds() -- returns registered engine IDs to hipDNN
 
 Handle
 ├── Holds shared_ptr<Container>
-├── setStream(hipStream_t) -- stream management
-└── getEngineManager() -- provides access to engines
+├── setStream(hipStream_t)
+└── getEngineManager()
 
-Context
-└── Inherits HipdnnEnginePluginExecutionContext + ExecutionContextBase
-
-Settings
-└── Plugin-specific execution settings (reluNegativeSlope)
 ```
+
+The `hip/` directory contains the HIPRTC abstraction layer (`IKernelCompiler`,
+`ICompiledProgram`, `IRunnableKernel`, and their concrete implementations).
+This layer is independent of any specific operation. Developers copy it as-is
+and update only the namespace.
 
 ### Engine Execution Flow
 
-1. **Container** registers engines with unique string IDs via
-   `HIPDNN_REGISTER_ENGINE()`.  The macro creates a compile-time FNV-1a hash
-   used as the numeric engine ID.
+1. **Container** creates engines and returns available engines IDs.
 
 2. hipDNN calls `isApplicable()` on each engine to check whether it supports a
    given operation graph.
 
-3. The engine delegates to its **PlanBuilders**.  Each PlanBuilder inspects the
+3. The engine delegates to its **PlanBuilders**. Each PlanBuilder inspects the
    graph's node attributes (e.g., `PointwiseAttributes` with
    `PointwiseMode::RELU_FWD`, or `ConvolutionFwdAttributes` with
    `ConvMode::CROSS_CORRELATION`).
@@ -205,7 +210,7 @@ Settings
    compile the GPU kernel via HIPRTC.
 
 5. `Plan::execute()` reads device pointers from the variant pack buffers
-   (matched by tensor UID) and launches the pre-compiled GPU kernel on the
+   (matched by tensor UID) and launches the compiled GPU kernel on the
    specified HIP stream.
 
 ### HIPRTC Compilation Flow
@@ -234,35 +239,29 @@ IRunnableKernel::launch(stream, args...)
 
 ### GPU Kernel Compilation: Source, Module, Kernel
 
-GPU kernel compilation follows a three-stage pipeline.  A GPU source file can
+GPU kernel compilation follows a three-stage pipeline. A GPU source file can
 define multiple kernel functions (each marked `__global__`), but the entire file
-is compiled as a single unit.  The compiled binary is loaded as a module, and
-individual kernels are then extracted from it by name.  The three DI interfaces
+is compiled as a single unit. The compiled binary is loaded as a module, and
+individual kernels are then extracted from it by name. The three DI interfaces
 (`IKernelCompiler`, `ICompiledProgram`, `IRunnableKernel`) model each stage
 directly.
 
 Note that compilation is distinct from the source embedding described in the
-HIPRTC Compilation Flow above.  At CMake configure time, all kernel `.cpp` files
-are embedded as C++ string literals into a generated source registry -- this is
-just text storage, not GPU compilation.  At runtime, each Plan compiles only its
+HIPRTC Compilation Flow above. At CMake configure time, all kernel `.cpp` files
+are embedded as C++ string literals into a generated source registry. This is
+just text storage, not GPU compilation. At runtime, each Plan compiles only its
 own kernel source file via HIPRTC, and only when its engine is selected for a
-graph.  `ReluPlan` compiles `ReluForward.cpp` and `ConvFwdPlan` compiles
-`ConvForwardNaive.cpp` independently; unused engines never trigger compilation.
+graph.
 
 **Stage 1: Source compilation.** A GPU source file (e.g., `ReluForward.cpp`) is
-compiled into a binary blob at runtime via HIPRTC.  This is the expensive step.
-The compiler reads source code, optimizes it for the target GPU architecture,
-and produces machine code.  The result is loaded as a HIP **module**
-(`hipModule_t`).  A module is analogous to a `.so` or `.dll`, a single binary
-containing compiled code for all `__global__` functions defined in that source
-file.  `IKernelCompiler::compile()` performs this step and returns an
-`ICompiledProgram` representing the loaded module.
+compiled into a binary blob at runtime via HIPRTC. The result is loaded as a HIP
+module (`hipModule_t`), analogous to a `.so` or `.dll` containing compiled code
+for all `__global__` functions in that source file.
+`IKernelCompiler::compile()` performs this step and returns an
+`ICompiledProgram`.
 
-**Stage 2: Kernel extraction.** Once a module is loaded, individual kernel
-functions are extracted by name.  This is a cheap lookup (`hipModuleGetFunction`)
-as no recompilation occurs.  A single module can contain multiple kernels.  For
-example, a source file defining both `add_vectors` and `multiply_vectors` kernels
-would be compiled once into one module, and each kernel extracted separately:
+**Stage 2: Kernel extraction.** Individual kernel functions are extracted from
+the loaded module by name via `hipModuleGetFunction`. A single module can contain multiple kernels:
 
 ```cpp
 auto module = compiler.compile("MyKernels.cpp", options);
@@ -271,30 +270,20 @@ auto mulKernel = module->getRunnableKernel("multiply_vectors");
 ```
 
 **Stage 3: Kernel launch.** The extracted kernel is configured (block size, grid
-size, shared memory) and launched on a HIP stream.  `IRunnableKernel::launch()`
-performs this step.
+size, shared memory) and launched on a HIP stream via
+`IRunnableKernel::launch()`.
 
-**Module lifetime matters.** The kernel function pointer (`hipFunction_t`)
-extracted from a module is only valid while that module remains loaded.  If the
-module is unloaded (via `hipModuleUnload` in `HipCompiledProgram`'s destructor),
-all kernel function pointers from it become invalid.  Conseqently, each Plan
-holds both members:
+**Module lifetime matters.** The kernel function pointer (`hipFunction_t`) is
+only valid while its module remains loaded. Each Plan holds both
+`_compiledProgram` (keeps the module loaded) and `_kernel` (function pointer
+into the module). The `_compiledProgram` is never accessed after `compile()`
+completes; it exists solely to prevent the module from being unloaded.
 
-```cpp
-std::unique_ptr<ICompiledProgram> _compiledProgram;  // keeps module loaded
-std::unique_ptr<IRunnableKernel> _kernel; // function pointer into the module
-```
-
-The `_compiledProgram` member is never accessed after `compile()` completes, it
-exists solely to prevent the module from being unloaded while the kernel is in
-use.
-
-In this example plugin, each source file contains exactly one kernel, so the
-one-module-to-many-kernels capability is not exercised.  The three-stage
-structure is preserved because it accurately models the HIP runtime API and
+In this example plugin, each source file contains exactly one kernel. The
+three-stage structure is preserved because it models the HIP runtime API and
 prepares developers for the general case.
 
-### DI Interfaces for Testability
+### Dependency Injection Interfaces for Testability
 
 The HIPRTC infrastructure is abstracted behind dependency-injection interfaces,
 enabling unit tests to run without GPU hardware:
@@ -305,73 +294,179 @@ enabling unit tests to run without GPU hardware:
 | `ICompiledProgram` | `HipCompiledProgram` | `MockCompiledProgram` |
 | `IRunnableKernel` | `HipRunnableKernel` | `MockRunnableKernel` |
 
-The Container creates the production implementations at construction time and
-passes them to engine factory lambdas.  Unit tests substitute the mocks.
+## Using This Example as a Template
 
-## Custom Knobs
+### Step-by-Step Adaptation Workflow
 
-The ReLU engine demonstrates the full custom knob lifecycle with
-`example.relu.negative_slope`:
+1. **Choose a name for your plugin**: Pick a short, descriptive name that
+   identifies the technology or backend your plugin provides (e.g.,
+   `rocblas_conv`, `custom_gemm`, `your_name`). This name will be
+   used throughout the plugin as:
+   - **Class prefix**: `ExamplePlugin*` becomes `YourName*` (e.g.,
+     `YourNameContainer`, `YourNameHandle`, `YourNameEngine`)
+   - **Namespace**: `example_plugin` becomes `your_name`
+   - **Engine identifiers**: `EXAMPLE_PLUGIN_RELU_ENGINE` becomes
+     `YOUR_NAME_xxx_ENGINE` (e.g., `YOUR_NAME_CONV_ENGINE`).
+     These names are visible to applications that select engines, so choose
+     something meaningful.
+   - **Plugin display name**: The `HIPDNN_PLUGIN_NAME` macro value (e.g.,
+     `"Your Name xxx engine"`)
 
-1. **`getCustomKnobs()`** (PlanBuilder) defines the knob: `FLOAT64`, default
-   `0.0`, range `[0.0, 1.0]`.  At `0.0`, standard ReLU; at `>0`, leaky ReLU
-   (`output = x >= 0 ? x : slope * x`).
+2. **Copy and rename the directory**: Copy `example_plugin/` to your new
+   plugin directory (e.g., `your_name_provider/`).
 
-2. **Frontend exposes** the knob via `graph->get_knobs_for_engine()` after
-   building execution plans.
+3. **Verify the build on your system**: Before making any code changes, run
+   `cmake --workflow --preset release` from your new plugin directory to
+   confirm the example plugin builds correctly in your environment and that tests
+   pass successfully. Resolve any build issues such as missing dependencies,
+   incorrect paths, or toolchain incompatibilities, before continuing. This
+   ensures that any issues encountered later are caused by changes made to the
+   code or project files and not by the build & test environment.
 
-3. **User sets** the value via `KnobSetting` on the engine config.
+4. **Rename classes**: Replace all `ExamplePlugin*` class names with your
+   plugin prefix (e.g., `YourNameKernel*`). This affects `Container`,
+   `Handle`, `Context`, `Settings`, `Engine`, and `Public`.
 
-4. **`initializeExecutionSettings()`** reads the value from `IEngineConfig`
-   into the `Settings` struct.
+5. **Update the namespace**: Change the `example_plugin` namespace to your
+   plugin's namespace throughout all source files.
 
-5. **`buildPlan()`** passes the setting to the Plan constructor.
+6. **Update the 5 macros** in `ExamplePluginPublic.cpp`: Set
+   `HIPDNN_PLUGIN_NAME` to your plugin's display name and generate new unique
+   values for the four type macros.
 
-6. **`execute()`** passes `negativeSlope` as a kernel argument.
+7. **Replace example PlanBuilders and Plans**: Remove `ReluPlanBuilder`,
+   `ReluPlan`, `ReluParams`, `ConvFwdPlanBuilder`, `ConvFwdPlan`, and
+   `ConvFwdParams`. Create your own PlanBuilder, Plan, and Params for each
+   operation your plugin supports. Plans inherit
+   `ICompilablePlan<YourPluginHandle>` from the plugin SDK. Key methods:
+   `isApplicable()`, `getCustomKnobs()`, `buildPlan()`, `compile()`,
+   `execute()`. To add further operations later, repeat this step and
+   steps 8-11.
 
-The ConvFwd engine has no custom knobs (`getCustomKnobs()` returns empty).
+8. **Write your GPU kernels**: Replace the kernel source files in `kernels/`
+   with your own. Each kernel must use `extern "C" __global__` and include
+   only HIPRTC-compatible headers.
 
-## Plugin Loading
+9. **Update CMake targets and kernel file list**: Update `KERNEL_FILES` in
+   `kernels/CMakeLists.txt` with your kernel filenames. Update the source
+   file list in `src/CMakeLists.txt` with your `.cpp` files.
 
-hipDNN supports three ways to load plugins:
+10. **Register your engines**: Update `ExamplePluginContainer.cpp` to register
+    your engines via `HIPDNN_REGISTER_ENGINE` with unique engine names and add
+    lambdas to create the new engines:
 
-### 1. HIPDNN_PLUGIN_DIR Environment Variable
+    ```cpp
+    HIPDNN_REGISTER_ENGINE(YOUR_ENGINE, "YOUR_ENGINE")
 
-Set before creating a hipDNN handle.  hipDNN scans this as the default directory for loading plugin
-shared libraries (`.so` on Linux, `.dll` on Windows).
+    // In getEngineDefinitions():
+    {YOUR_ENGINE_ID,
+     [](const IKernelCompiler& compiler) {
+         auto engine = std::make_unique<ExamplePluginEngine>(YOUR_ENGINE_ID);
+         engine->addPlanBuilder(std::make_unique<YourPlanBuilder>(compiler));
+         return engine;
+     }},
+    ```
+
+11. **Build and run unit tests**: Follow the [Build Instructions](#build-instructions)
+    to verify successful compilation and tests.
+
+### File Classification
+
+Comment markers are used to identify files that will be modified when using this
+example as a template for creating a new plugin. Look for `TEMPLATE ADAPTATION`
+and `TEMPLATE REFERENCE` comment markers in the source files for per-file guidance.
+
+| Files | Marker | What to Do |
+|-------|--------|------------|
+| `ExamplePluginPublic.cpp`, `ExamplePluginContainer.hpp/cpp`, `ExamplePluginHandle.hpp/cpp`, `ExamplePluginContext.hpp`, `ExamplePluginSettings.hpp`, `ExamplePluginEngine.hpp/cpp`, `ExamplePluginUtils.hpp` | `TEMPLATE ADAPTATION` | Rename `ExamplePlugin` to `YourPlugin`. Adjust class names, namespace, and includes. These files are framework plumbing; the structure stays the same. |
+| `hip/IKernelCompiler.hpp`, `hip/ICompiledProgram.hpp`, `hip/IRunnableKernel.hpp`, `hip/HipKernelCompiler.hpp`, `hip/HipCompiledProgram.hpp/cpp`, `hip/HipRunnableKernel.hpp/cpp`, `hip/HipUtils.hpp` | *(none)* | Update namespace only. These implement the HIPRTC compilation pipeline and do not contain operation-specific logic. |
+| `engines/plans/ReluPlanBuilder.hpp/cpp`, `engines/plans/ReluPlan.hpp/cpp`, `engines/plans/ReluParams.hpp` | `TEMPLATE REFERENCE` | Study to learn the PlanBuilder/Plan pattern, then replace with your own operation's PlanBuilder, Plan, and Params. Key methods: `isApplicable()`, `getCustomKnobs()`, `initializeExecutionSettings()`, `buildPlan()`, `compile()`, `execute()`. |
+| `engines/plans/ConvFwdPlanBuilder.hpp/cpp`, `engines/plans/ConvFwdPlan.hpp/cpp`, `engines/plans/ConvFwdParams.hpp` | `TEMPLATE REFERENCE` | Second example of the same pattern. Compare with ReLU to see how different operations handle graph matching, parameters, and kernel launch. |
+| `kernels/relu/ReluForward.cpp`, `kernels/conv/ConvForwardNaive.cpp` | *(none)* | Replace with your GPU kernel source files. Each kernel must use `extern "C" __global__` and include only HIPRTC-compatible headers. |
+| `kernels/CMakeLists.txt` | `TEMPLATE ADAPTATION` | Update `KERNEL_FILES` list with your kernel filenames. |
+| `tests/TestReluPlanBuilder.cpp`, `tests/TestReluPlan.cpp`, `tests/TestConvFwdPlanBuilder.cpp`, `tests/TestConvFwdPlan.cpp` | `TEMPLATE REFERENCE` | Study the testing patterns, then write equivalent tests for your operations. |
+| `tests/TestHelpers.hpp` | `TEMPLATE ADAPTATION` | As preferred, replace `createReluFwdGraph()` / `createConvFwdGraph()` with helpers that build your operation's FlatBuffer graphs. Keep `createEngineConfig()`. |
+| `tests/mocks/MockKernelCompiler.hpp`, `tests/mocks/MockCompiledProgram.hpp`, `tests/mocks/MockRunnableKernel.hpp` | *(none)* | As preferred, copy into your test directory. Update namespace only. These mocks implement the interfaces for GPU-free unit testing. |
+| `sample/ExamplePluginSample.cpp` | `TEMPLATE ADAPTATION` | As preferred, adapt scenarios to exercise your operations. Keep the plugin loading and engine selection patterns; replace the graph construction and verification logic. This file can alternatively be replaced with a suite of integration tests or a custom application. |
+
+## Testing Your Plugin
+
+### Unit Testing Architecture
+
+Unit tests run without GPU hardware using the DI interfaces and mocks described
+in [Dependency Injection Interfaces for Testability](#dependency-injection-interfaces-for-testability).
+
+### What to Test in a PlanBuilder
+
+See `tests/TestReluPlanBuilder.cpp` for the complete pattern.
+
+- **`isApplicable()`** -- returns `true` for matching operation graphs, `false`
+  for non-matching (wrong operation type, wrong node count, wrong data type)
+- **`getCustomKnobs()`** -- returns the correct knob definitions (IDs, types,
+  ranges, defaults)
+- **`getMaxWorkspaceSize()`** -- returns expected workspace bytes
+- **`buildPlan()`** -- sets a valid plan on the execution context (mock
+  expectations verify the correct kernel filename and function name are used)
+
+### What to Test in a Plan
+
+See `tests/TestReluPlan.cpp` for the complete pattern.
+
+- **`compile()`** -- calls the compiler with the correct kernel filename and
+  extracts the correct kernel function name
+- **`execute()`** -- sets correct grid/block dimensions and launches the kernel
+  (verified via mock expectations)
+- **`getWorkspaceSize()`** -- returns expected bytes
+- **Error handling** -- missing device buffers throw `HipdnnPluginException`
+
+### Acceptance Testing
+
+The sample application (`sample/ExamplePluginSample.cpp`) serves as the
+acceptance test. It is registered as a `ctest` and verifies end-to-end
+correctness on GPU hardware. When writing a new plugin, you can adapt the
+sample scenarios to exercise your operations with correctness verification.
+This file can alternatively be replaced with a suite of integration tests or
+a custom application.
+
+### Running Tests
+
+See [Build Instructions](#build-instructions) for build and test commands.
+
+## Integrating the Plugin into Your Application
+
+### Plugin Loading
+
+Ensuring the plugin is loaded is the **application's** responsibility, not the
+plugin's. The plugin developer builds a shared library (`.so` / `.dll`) and
+ensures it is placed in a discoverable location.
+
+By default, hipDNN loads all plugins in the ROCm install
+`/lib/hipdnn_plugins/engines` folder. There are three ways to override this:
+
+**Environment variable** (`HIPDNN_PLUGIN_DIR`): Set before creating a hipDNN
+handle. This becomes the new default plugin directory that hipDNN scans for
+plugin shared libraries (`.so` on Linux, `.dll` on Windows).
 
 ```bash
 export HIPDNN_PLUGIN_DIR=/path/to/plugin/directory
 ```
 
-### 2. Programmatic: ADDITIVE Mode
-
-Load additional plugin directories alongside the system-installed plugins.
-This is the default mode.
+**ADDITIVE mode**: Load additional plugin directories alongside any paths
+already specified, including the hipDNN default plugin directory.
 
 ```cpp
 #include <hipdnn_frontend.hpp>
-
 using namespace hipdnn_frontend;
-
 std::vector<std::string> paths = {"/path/to/my/plugins"};
 auto err = setEnginePluginPaths(paths, PluginLoadingMode::MODE_ADDITIVE);
-
-hipdnnHandle_t handle;
-hipdnnCreate(&handle);
 ```
 
-### 3. Programmatic: ABSOLUTE Mode
-
-Replace all plugin search paths.  Only the specified directories are searched;
-system-installed plugins are ignored.
+**ABSOLUTE mode**: Replace all plugin search paths. Only the specified
+directories are searched; system-installed plugins are ignored.
 
 ```cpp
 std::vector<std::string> paths = {"/path/to/my/plugins"};
 auto err = setEnginePluginPaths(paths, PluginLoadingMode::MODE_ABSOLUTE);
-
-hipdnnHandle_t handle;
-hipdnnCreate(&handle);
 ```
 
 ### Path Resolution
@@ -379,7 +474,7 @@ hipdnnCreate(&handle);
 hipDNN resolves plugin paths as follows:
 
 **Relative paths** are resolved against the directory containing
-`libhipdnn_backend.so` (NOT the current working directory).  For example, if
+`libhipdnn_backend.so` (NOT the current working directory). For example, if
 the backend library is loaded from `/opt/rocm/lib/libhipdnn_backend.so`, then
 `HIPDNN_PLUGIN_DIR=my_plugins` resolves to `/opt/rocm/lib/my_plugins/`.
 
@@ -394,9 +489,21 @@ When a **plugin file** (not a directory) is specified:
 - If the file has an incorrect extension (e.g., `.so` on Windows or `.dll` on
   Linux), it is rejected with an error.
 
-## Engine Selection
+### Verifying the Plugin Is Loaded
 
-By default, hipDNN selects the best engine using heuristic ranking.  To force
+After creating a hipDNN handle, query loaded plugins to confirm yours is
+present:
+
+```cpp
+auto paths = getLoadedEnginePluginPaths();
+for (const auto& path : paths) {
+    std::cout << "Loaded: " << path << std::endl;
+}
+```
+
+### Engine Selection
+
+By default, hipDNN selects the best engine using heuristic ranking. To force
 a specific engine, use `set_preferred_engine_id_ext()` on the graph before
 building:
 
@@ -427,94 +534,96 @@ graph->get_ranked_engine_ids(engineIds);
 // engineIds contains all applicable engine IDs ranked by heuristic score
 ```
 
-## How to Add a New Operation
+### Install Location
 
-The ConvFwd engine serves as a concrete example of adding a second operation
-alongside ReLU.  The general pattern:
+The plugin `.so` is installed to
+`${CMAKE_INSTALL_PREFIX}/lib/hipdnn_plugins/engines/` by default (configurable
+via `HIPDNN_RELATIVE_INSTALL_PLUGIN_ENGINE_DIR`).
 
-1. **Create a GPU kernel** in `kernels/<operation>/<KernelName>.cpp`:
-   - Use `extern "C" __global__` for HIPRTC symbol lookup
-   - Keep the kernel focused; preprocessing goes in the Plan
+See `sample/ExamplePluginSample.cpp` for a complete example showing plugin
+loading, engine selection, knob modification, and correctness verification.
 
-2. **Register the kernel** in `kernels/CMakeLists.txt` via the
-   `embed_kernel_sources()` function so it is embedded at configure time.
+## Quick Checklist
 
-3. **Create a PlanBuilder** in `src/engines/plans/`:
-   - Accept `IKernelCompiler&` via constructor
-   - Implement `isApplicable()` to match the graph's node attributes
-   - Implement `buildPlan()` to extract tensor metadata, create a Plan, and
-     call `plan->compile(kernelCompiler)`
+- [ ] Copy and rename `example_plugin/` directory
+- [ ] Perform a preliminary build and test runs to verify environment.
+- [ ] Rename all `ExamplePlugin*` classes to `YourPlugin*`
+- [ ] Update namespace from `example_plugin`
+- [ ] Update the 5 macros in `Public.cpp`
+- [ ] Write your GPU kernel(s) in `kernels/`
+- [ ] Update `KERNEL_FILES` in `kernels/CMakeLists.txt`
+- [ ] Implement your PlanBuilder (`isApplicable`, `getCustomKnobs`, `buildPlan`)
+- [ ] Implement your Plan (`compile`, `execute`, `getWorkspaceSize`)
+- [ ] Create your Params struct
+- [ ] Register your engine (`HIPDNN_REGISTER_ENGINE`) and create in Container
+- [ ] Update `ExamplePluginSettings` with your settings fields
+- [ ] Write unit tests for PlanBuilder and Plan
+- [ ] Create graph construction helpers in `TestHelpers.hpp`
+- [ ] Build and verify: `cmake --workflow --preset release`
+- [ ] Adapt sample app scenarios and verify on GPU
 
-4. **Create a Plan** in `src/engines/plans/`:
-   - Inherit `ICompilablePlan<ExamplePluginHandle>` from the plugin SDK
-   - Implement `compile()` to build HIPRTC options, compile the kernel, and
-     set block/grid sizes
-   - Implement `execute()` to extract device pointers by tensor UID and
-     launch the kernel
+## Custom Knobs
 
-5. **Register the engine** in `ExamplePluginContainer.cpp`:
-   ```cpp
-   HIPDNN_REGISTER_ENGINE(YOUR_ENGINE, "YOUR_ENGINE")
+The ReLU engine demonstrates the full custom knob lifecycle with
+`example.relu.negative_slope`:
 
-   // In getEngineDefinitions():
-   {YOUR_ENGINE_ID,
-    [](const IKernelCompiler& compiler) {
-        auto engine = std::make_unique<ExamplePluginEngine>(YOUR_ENGINE_ID);
-        engine->addPlanBuilder(std::make_unique<YourPlanBuilder>(compiler));
-        return engine;
-    }},
-   ```
+1. **`getCustomKnobs()`** (PlanBuilder) defines the knob: `FLOAT64`, default
+   `0.0`, range `[0.0, 1.0]`. At `0.0`, standard ReLU; at `>0`, leaky ReLU
+   (`output = x >= 0 ? x : slope * x`).
 
-6. **Add unit tests** in `tests/` for `isApplicable()`, `compile()`, and
-   `execute()`, using mock objects instead of real GPU hardware.
+2. **Frontend exposes** the knob via `graph->get_knobs_for_engine()` after
+   building execution plans.
 
-7. **Update `src/CMakeLists.txt`** to include the new source files.
+3. **User sets** the value via `KnobSetting` on the engine config.
+
+4. **`initializeExecutionSettings()`** reads the value from `IEngineConfig`
+   into the `Settings` struct.
+
+5. **`buildPlan()`** passes the setting to the Plan constructor.
+
+6. **`execute()`** passes `negativeSlope` as a kernel argument.
+
+The ConvFwd engine has no custom knobs (`getCustomKnobs()` returns empty).
 
 ## Technical Details
-
-### Why `-fvisibility=hidden` Is Critical
-
-The plugin shared library uses `CXX_VISIBILITY_PRESET hidden`.  Without this,
-all internal symbols (including C++ standard library and SDK symbols) are
-exported from the plugin `.so`.  When multiple plugins are loaded into the same
-process, their exported symbols can collide and cause unpredictable behavior
-(wrong function called, ABI mismatches, crashes).  With hidden visibility, only
-the explicitly exported C API entry points are visible.
 
 ### Why Position-Independent Code (PIC) Is Required
 
 Shared libraries loaded via `dlopen()` / `LoadLibrary()` must be compiled with
-position-independent code (`-fPIC` on GCC, default on MSVC).  CMake's
-`CMAKE_POSITION_INDEPENDENT_CODE ON` ensures this.  Without PIC, the dynamic
+position-independent code (`-fPIC` on GCC, default on MSVC). CMake's
+`CMAKE_POSITION_INDEPENDENT_CODE ON` ensures this. Without PIC, the dynamic
 linker cannot relocate the code to an arbitrary address, and `dlopen()` will
-fail.  Additionally, thread-local storage (TLS) models differ between PIC and
+fail. Additionally, thread-local storage (TLS) models differ between PIC and
 non-PIC code; mixing them causes linker errors.
 
 ### `RTLD_NOW | RTLD_LOCAL` Loading Behavior
 
 hipDNN loads plugins with `dlopen(path, RTLD_NOW | RTLD_LOCAL)` on Linux:
 
-- **`RTLD_NOW`** forces immediate resolution of ALL symbols.  If any dependency
+- **`RTLD_NOW`** forces immediate resolution of ALL symbols. If any dependency
   (including `libhiprtc.so`) cannot be found, the plugin fails to load
-  entirely.  This is a deliberate design choice: a plugin either loads
-  completely or not at all.  hipDNN logs the error and continues without the
+  entirely. This is a deliberate design choice: a plugin either loads
+  completely or not at all. hipDNN logs the error and continues without the
   plugin.
 
 - **`RTLD_LOCAL`** prevents the plugin's symbols from being visible to other
-  shared libraries in the process.  This isolates plugins from each other,
+  shared libraries in the process. This isolates plugins from each other,
   preventing symbol pollution.
 
 On Windows, `LoadLibraryW()` provides similar behavior with its default
 DLL search order.
 
-### Runtime Dependency Resolution
+### Runtime Dependency Resolution and RPATH
 
-The plugin links against `hiprtc::hiprtc`, making `libhiprtc.so` a transitive
-dependency of the plugin `.so`.  **The user's application does NOT need to link
-against hiprtc** -- when hipDNN loads the plugin via `dlopen()`, the dynamic
-linker resolves `libhiprtc.so` independently from the user's application binary.
+ROCm libraries (including `libhiprtc.so`) are typically installed in
+`/opt/rocm/lib` (Linux), which is NOT registered with `ldconfig` and is not in the
+default library search path. The plugin links against `hiprtc::hiprtc`, making
+`libhiprtc.so` a transitive dependency of the plugin `.so`. **The user's
+application does NOT need to link against hiprtc**. When hipDNN loads the
+plugin via `dlopen()`, the dynamic linker resolves `libhiprtc.so` independently
+from the user's application binary.
 
-The plugin achieves this via RPATH embedded in the `.so`:
+The plugin project embeds RPATH in the `.so`:
 
 ```cmake
 set_target_properties(example_plugin PROPERTIES
@@ -525,7 +634,7 @@ set_target_properties(example_plugin PROPERTIES
 ```
 
 - `INSTALL_RPATH "${ROCM_PATH}/lib"` -- tells the dynamic linker where to find
-  `libhiprtc.so` at runtime
+  `libhiprtc.so` **at runtime**
 - `INSTALL_RPATH_USE_LINK_PATH TRUE` -- automatically adds directories of
   linked libraries to RPATH
 - `BUILD_WITH_INSTALL_RPATH TRUE` -- the plugin works from the build tree
@@ -548,7 +657,7 @@ If the plugin fails to load silently (no engines from this plugin appear):
    ```bash
    ldd build/src/libexample_plugin.so
    ```
-   All dependencies should resolve.  Look for `not found` entries.
+   All dependencies should resolve. Look for `not found` entries.
 
 2. Trace the dynamic linker's search:
    ```bash
@@ -557,31 +666,13 @@ If the plugin fails to load silently (no engines from this plugin appear):
 
 3. Verify RPATH is embedded:
    ```bash
-   readelf -d build/src/libexample_plugin.so | grep RPATH
+   readelf -d build/src/libexample_plugin.so | grep 'RPATH|RUNPATH'
    ```
-
-### RPATH Configuration
-
-ROCm libraries (including `libhiprtc.so`) are typically installed in
-`/opt/rocm/lib`, which is NOT registered with `ldconfig` and is not in the
-default library search path.  Without RPATH, the dynamic linker cannot find
-`libhiprtc.so` when `dlopen()` loads the plugin, causing a silent load failure.
-
-The RPATH solution matches the pattern used by hipDNN's production plugins
-(miopen-provider and hip-kernel-provider).
-
-### Windows spdlog Caution
-
-On Windows, if the plugin uses spdlog (brought in transitively by the plugin
-SDK), `spdlog::shutdown()` must be called before static destructors run.  On
-Linux this is handled automatically, but on Windows the DLL unload order can
-cause the spdlog registry to be destroyed before the plugin's static loggers,
-leading to crashes during process exit.
 
 ## Extending for Real-World Use
 
 This example uses a naive convolution kernel and single-precision floats for
-simplicity.  To build a production plugin:
+simplicity. To build a production plugin:
 
 - **Support multiple data types**: Check `TensorAttributes::data_type()` in
   `isApplicable()` and `buildPlan()` to handle FLOAT, HALF, BFLOAT16, etc.
@@ -589,11 +680,10 @@ simplicity.  To build a production plugin:
 
 - **Optimize GPU kernels**: The naive convolution kernel (one thread per output
   element, no shared memory, no tiling) is deliberately simple for educational
-  purposes.  Production convolutions should use shared memory tiling, register
-  blocking, and vectorized loads.  See MIOpen for optimized implementations.
+  purposes.
 
 - **Add workspace management**: Return non-zero from `getMaxWorkspaceSize()`
-  if your engine needs temporary scratch memory.  hipDNN allocates the
+  if your engine needs temporary scratch memory. hipDNN allocates the
   workspace and passes it to `execute()`.
 
 - **Implement custom knobs**: Override `getCustomKnobs()` in your PlanBuilder
@@ -602,8 +692,8 @@ simplicity.  To build a production plugin:
 - **Support multi-node graphs**: Extend `isApplicable()` to match fused
   operation patterns (e.g., Conv + BiasAdd + ReLU).
 
-- **Add Windows support**: The CMake project uses generator expressions for
-  cross-platform compiler flags.  Verify with MSVC and adjust as needed.
+- **Available Windows support**: The CMake project uses generator expressions for
+  cross-platform compiler flags.
 
 ## Further Reading
 

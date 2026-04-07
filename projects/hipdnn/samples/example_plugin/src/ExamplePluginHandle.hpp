@@ -21,6 +21,10 @@ namespace example_plugin
 class ExamplePluginContainer;
 }
 
+// TEMPLATE ADAPTATION: Copy this file and rename the class. The stream management and FlatBuffer
+// detached buffer lifetime methods are framework plumbing; no operation-specific changes are needed.
+// If your plugin requires additional per-session state, add members here.
+
 /// Handle for the example plugin.
 ///
 /// Inherits from HipdnnEnginePluginHandle for opaque pointer compatibility.

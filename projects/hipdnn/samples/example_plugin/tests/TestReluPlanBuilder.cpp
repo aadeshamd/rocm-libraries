@@ -1,6 +1,12 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE ADAPTATION: Demonstrates the testing pattern for PlanBuilders. Key test categories:
+// (1) isApplicable: verify true for matching graphs, false for non-matching.
+// (2) getCustomKnobs: verify knob IDs and types.
+// (3) buildPlan: verify a valid plan is created (uses mock compilation chain).
+// Adapt these tests or discard and replace with tests appropriate for your PlanBuilder.
+
 #include <gtest/gtest.h>
 
 #include <memory>

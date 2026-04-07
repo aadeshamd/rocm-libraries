@@ -14,13 +14,21 @@
 namespace example_plugin
 {
 
-// ============================================================================
-// Engine Registration
-// ============================================================================
-// HIPDNN_REGISTER_ENGINE creates _NAME and _ID constants and an EngineRegistrar
-// that detects hash collisions with other registered engines at startup.
-// The using declarations bring the SDK types into scope for the macro.
-// ============================================================================
+// TEMPLATE ADAPTATION: Register and create engines. To adapt:
+// (1) Update the engine names and IDs in the HIPDNN_REGISTER_ENGINE calls (one call for each
+//     engine provided by this plugin).
+// (2) Update s_engineDefinitions to create your PlanBuilders instead of
+//     ReluPlanBuilder/ConvFwdPlanBuilder.
+//
+// The s_engineDefinitions vector is one approach to reduce coupling between creating
+// engines (in the ExamplePluginContainer constructor) and returning the list of engine
+// IDs (in (in ExamplePluginContainer::copyEngineIds()). Alternate approaches can be
+// used if this approach is not suitable for your plugin.
+
+// The HIPDNN_REGISTER_ENGINE() macro creates _NAME and _ID constants for each engine.
+// E.g. HIPDNN_REGISTER_ENGINE(EXAMPLE_PLUGIN_RELU_ENGINE) will create
+// EXAMPLE_PLUGIN_RELU_ENGINE_NAME with the value "EXAMPLE_PLUGIN_RELU_ENGINE" and
+// EXAMPLE_PLUGIN_RELU_ENGINE_ID with the hash-derived integer ID for the engine.
 HIPDNN_REGISTER_ENGINE(EXAMPLE_PLUGIN_RELU_ENGINE)
 HIPDNN_REGISTER_ENGINE(EXAMPLE_PLUGIN_CONV_FWD_ENGINE)
 

@@ -1,6 +1,9 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: Second Plan example demonstrating the same compile/execute pattern as
+// ReluPlan but for a convolution kernel with more parameters.
+
 #pragma once
 
 #include <cstddef>

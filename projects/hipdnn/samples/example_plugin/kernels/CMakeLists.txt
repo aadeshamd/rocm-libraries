@@ -1,7 +1,10 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-# List kernel files to embed
+# TEMPLATE ADAPTATION: Replace the kernel filenames below with your GPU kernel source files. Files
+# with .cpp extension are embedded as kernel sources (compiled by HIPRTC). Files with .h/.hpp
+# extension are embedded as kernel headers (available to #include at runtime). The embedding system
+# (cmake/EmbedKernelSources.cmake) handles the rest automatically.
 set(KERNEL_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/relu/ReluForward.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/conv/ConvForwardNaive.cpp

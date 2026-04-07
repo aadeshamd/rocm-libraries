@@ -1,6 +1,10 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
+# TEMPLATE ADAPTATION: Update the source file list below with your plugin's .cpp files. The
+# three-target structure (OBJECT -> STATIC for tests + SHARED for plugin) should be kept as-is as it
+# allows unit tests to link against plugin internals without loading the plugin as a shared library.
+
 # =============================================================================
 # OBJECT library: contains all plugin implementation source files.
 # Both the shared library (actual plugin) and static library (for unit tests)
@@ -34,7 +38,7 @@ set_target_properties(example_plugin_impl PROPERTIES
 
 # =============================================================================
 # Static library: exposes plugin internals for unit tests to link against.
-# This is not installed or distributed -- it exists only for testability.
+# This is not installed or distributed. It exists only for testability.
 # =============================================================================
 add_library(example_plugin_private STATIC $<TARGET_OBJECTS:example_plugin_impl>)
 target_include_directories(example_plugin_private PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

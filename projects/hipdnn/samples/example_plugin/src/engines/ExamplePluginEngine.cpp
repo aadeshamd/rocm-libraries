@@ -56,7 +56,7 @@ void ExamplePluginEngine::getDetails(ExamplePluginHandle& handle,
             knobsVector.push_back(knobOffset);
         }
 
-        // Only one plan builder should be applicable -- stop after finding the first
+        // Only one plan builder should be applicable. Stop after finding the first.
         break;
     }
 

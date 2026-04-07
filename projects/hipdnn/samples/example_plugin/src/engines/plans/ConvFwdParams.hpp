@@ -1,6 +1,8 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: Convolution parameter struct
+
 #pragma once
 
 #include <cstdint>

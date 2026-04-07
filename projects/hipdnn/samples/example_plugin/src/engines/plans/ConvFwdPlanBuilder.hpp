@@ -1,6 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: Second PlanBuilder example demonstrating the same pattern as ReluPlanBuilder
+// but for a convolution operation. Compare with ReluPlanBuilder to see how different operations
+// handle graph matching (isApplicable), parameter extraction (buildPlan), and knob definitions
+// (getCustomKnobs).
+
 #pragma once
 
 #include <memory>

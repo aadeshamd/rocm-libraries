@@ -1,6 +1,9 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: Second Plan test example. This uses the same testing pattern
+// as TestReluPlan.cpp but for a convolution kernel.
+
 #include <gtest/gtest.h>
 
 #include <cstdint>

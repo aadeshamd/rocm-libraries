@@ -1,6 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: The approach of using a POD struct to hold the parameters extracted
+// from the operation graph by the PlanBuilder is not required as the parameters can
+// be passed directly to the Plan instead. The POD struct approach can be useful if there
+// are a large number of parameters. Replace with your operation's parameters.
+
 #pragma once
 
 #include <cstdint>

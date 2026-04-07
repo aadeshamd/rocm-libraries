@@ -1,6 +1,13 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE ADAPTATION: As needed, to assist with testing, replace createReluFwdGraph()
+// and createConvFwdGraph() with helpers that build your operation's FlatBuffer graphs.
+// You can use createEngineConfig() as-is as it creates a generic engine config usable by
+// any PlanBuilder test. Other functions can be used or modified as the situation dictates.
+// The helper functions construct in-memory FlatBuffer graphs that simulate what the
+// hipDNN frontend produces.
+
 #pragma once
 
 #include <cstdint>

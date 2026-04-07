@@ -1,6 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: This file demonstrates the PlanBuilder pattern for a pointwise ReLU
+// operation. Study the 5 key methods: isApplicable(), getCustomKnobs(), initializeExecutionSettings(),
+// getMaxWorkspaceSize(), buildPlan(). Then replace this file with your operation's PlanBuilder. See
+// also ConvFwdPlanBuilder for a convolution example of the same pattern.
+
 #pragma once
 
 #include <memory>

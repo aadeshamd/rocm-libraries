@@ -6,6 +6,12 @@
 
 using namespace example_plugin;
 
+// TEMPLATE ADAPTATION: Update these 5 macros below for your plugin. HIPDNN_PLUGIN_NAME sets the
+// display name. HIPDNN_PLUGIN_VERSION is the semantic version number of the plugin, maintained
+// by the plugin developer.
+// The EnginePluginImpl.inl include generates all C API entry points from these macros. No other
+// changes are needed in this file.
+
 #define HIPDNN_PLUGIN_NAME "example_plugin"
 #define HIPDNN_PLUGIN_VERSION "0.1.0"
 #define HIPDNN_PLUGIN_CONTAINER_TYPE ExamplePluginContainer

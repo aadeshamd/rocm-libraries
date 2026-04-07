@@ -13,7 +13,11 @@
 namespace example_plugin
 {
 
-/// Generic engine coordinator — copy this class as-is for your own plugin.
+// TEMPLATE ADAPTATION: Copy as-is and rename the class. This generic engine coordinator delegates
+// to PlanBuilders and contains no operation-specific logic. The only change needed is the class
+// name.
+
+/// Generic engine coordinator. Copy this class as-is for your own plugin.
 ///
 /// This engine contains no operation-specific logic. It manages a collection
 /// of PlanBuilders and delegates all work (applicability checks, knob

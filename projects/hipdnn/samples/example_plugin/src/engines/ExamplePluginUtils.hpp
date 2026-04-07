@@ -1,6 +1,9 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE ADAPTATION: Copy as-is and update namespace. This utility function looks up device
+// buffers by tensor UID and is used by all Plan::execute() implementations.
+
 #pragma once
 
 #include <cstdint>

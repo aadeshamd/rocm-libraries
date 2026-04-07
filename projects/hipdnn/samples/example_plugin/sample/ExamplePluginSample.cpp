@@ -1,6 +1,13 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE ADAPTATION: Adapt this sample to exercise your plugin's operations. Scenario 1 (engine
+// selection + knob modification) and Scenario 2 (convenience build) demonstrate the two API
+// styles. Keep the structure and replace the graph construction and verification logic. Scenario 3
+// (plugin loading modes) can be kept as-is with your plugin name updated, customized for your
+// specific environment, or discarded if the plugin is installed directly to the ROCm hipDNN plugin
+// folder where it will be loaded automatically with all hipDNN plugins.
+//
 // Sample application demonstrating how to load a hipDNN engine plugin and
 // execute graphs using the plugin's GPU engines. This program serves as both
 // a demonstration and an end-to-end acceptance test.
@@ -34,7 +41,6 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <variant>
@@ -52,8 +58,10 @@
 using namespace hipdnn_frontend;
 
 // ============================================================================
-// HIP error checking helper
+// Helper Functions
 // ============================================================================
+
+// HIP error checking helper
 static bool checkHip(hipError_t err, const char* msg)
 {
     if(err != hipSuccess)
@@ -64,28 +72,29 @@ static bool checkHip(hipError_t err, const char* msg)
     return true;
 }
 
-static std::string knobValueToString(const KnobValueVariant& value)
+// Check a hipDNN graph operation result and print an error message on failure.
+// Returns true if the result is OK, false otherwise. The caller decides how
+// to handle the failure (cleanup, early return, etc.).
+static bool checkGraphResult(const hipdnn_frontend::error_t& result, const char* stepName)
 {
-    if(std::holds_alternative<int64_t>(value))
-        return std::to_string(std::get<int64_t>(value));
-    if(std::holds_alternative<double>(value))
+    if(result.code != ErrorCode::OK)
     {
-        std::ostringstream oss;
-        oss << std::fixed << std::setprecision(2) << std::get<double>(value);
-        return oss.str();
+        std::cerr << "  ERROR: " << stepName << " failed: " << result.err_msg << "\n";
+        return false;
     }
-    if(std::holds_alternative<std::string>(value))
-        return "\"" + std::get<std::string>(value) + "\"";
-    return "(unknown)";
+    return true;
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
+// Result of createReluGraph: the graph plus input/output tensor attributes.
+struct ReluGraphResult
+{
+    std::shared_ptr<hipdnn_frontend::graph::Graph> graph;
+    std::shared_ptr<hipdnn_frontend::graph::TensorAttributes> x;
+    std::shared_ptr<hipdnn_frontend::graph::TensorAttributes> y;
+};
 
 // Build a pointwise ReLU forward graph with the given tensor dimensions.
-static std::shared_ptr<hipdnn_frontend::graph::Graph>
-    createReluGraph(const std::string& name, const std::vector<int64_t>& dims)
+static ReluGraphResult createReluGraph(const std::string& name, const std::vector<int64_t>& dims)
 {
     auto graph = std::make_shared<hipdnn_frontend::graph::Graph>();
     graph->set_name(name)
@@ -107,7 +116,7 @@ static std::shared_ptr<hipdnn_frontend::graph::Graph>
     auto y = graph->pointwise(x, attrs);
     y->set_uid(2).set_data_type(DataType::FLOAT).set_output(true);
 
-    return graph;
+    return {graph, x, y};
 }
 
 // Run the full build/execute sequence for a ReLU graph using GPU device memory.
@@ -120,60 +129,51 @@ static bool runReluGraph(hipdnnHandle_t handle,
     auto numElements = static_cast<int64_t>(input.size());
     std::vector<int64_t> dims = {1, 1, 1, numElements};
 
-    auto graph = createReluGraph(graphName, dims);
+    auto [graph, x, y] = createReluGraph(graphName, dims);
     graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_RELU_ENGINE");
 
     auto result = graph->build(handle);
-    if(result.code != ErrorCode::OK)
-    {
-        std::cerr << "  ERROR: build failed: " << result.err_msg << "\n";
+    if(!checkGraphResult(result, "build"))
         return false;
-    }
 
-    output.resize(input.size());
-    const size_t bufferSize = input.size() * sizeof(float);
+    // Use Tensor class for GPU memory management (host+device allocation,
+    // automatic H2D/D2H transfers)
+    hipdnn_data_sdk::utilities::Tensor<float> xTensor(dims);
+    xTensor.fillWithData(input.data(), input.size() * sizeof(float));
 
-    float* dInput = nullptr;
-    float* dOutput = nullptr;
-    if(!checkHip(hipMalloc(&dInput, bufferSize), "hipMalloc dInput"))
-        return false;
-    if(!checkHip(hipMalloc(&dOutput, bufferSize), "hipMalloc dOutput"))
-    {
-        static_cast<void>(hipFree(dInput));
-        return false;
-    }
-    if(!checkHip(hipMemcpy(dInput, input.data(), bufferSize, hipMemcpyHostToDevice),
-                 "hipMemcpy H2D"))
-    {
-        static_cast<void>(hipFree(dInput));
-        static_cast<void>(hipFree(dOutput));
-        return false;
-    }
+    hipdnn_data_sdk::utilities::Tensor<float> yTensor(dims);
+    yTensor.fillWithValue(0.0f);
 
     std::unordered_map<int64_t, void*> variantPack;
-    variantPack[1] = dInput;
-    variantPack[2] = dOutput;
+    variantPack[x->get_uid()] = xTensor.memory().deviceData();
+    variantPack[y->get_uid()] = yTensor.memory().deviceData();
 
     result = graph->execute(handle, variantPack, nullptr);
-    if(result.code != ErrorCode::OK)
-    {
-        std::cerr << "  ERROR: execute failed: " << result.err_msg << "\n";
-        static_cast<void>(hipFree(dInput));
-        static_cast<void>(hipFree(dOutput));
+    if(!checkGraphResult(result, "execute"))
         return false;
-    }
 
-    if(!checkHip(hipMemcpy(output.data(), dOutput, bufferSize, hipMemcpyDeviceToHost),
-                 "hipMemcpy D2H"))
-    {
-        static_cast<void>(hipFree(dInput));
-        static_cast<void>(hipFree(dOutput));
-        return false;
-    }
+    // Transfer output from device to host via Tensor's managed memory
+    yTensor.memory().markDeviceModified();
+    auto yHostPtr = yTensor.memory().hostData();
+    output.assign(yHostPtr, yHostPtr + input.size());
 
-    static_cast<void>(hipFree(dInput));
-    static_cast<void>(hipFree(dOutput));
     return true;
+}
+
+// Print knob value
+static std::string knobValueToString(const KnobValueVariant& value)
+{
+    if(std::holds_alternative<int64_t>(value))
+        return std::to_string(std::get<int64_t>(value));
+    if(std::holds_alternative<double>(value))
+    {
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(2) << std::get<double>(value);
+        return oss.str();
+    }
+    if(std::holds_alternative<std::string>(value))
+        return "\"" + std::get<std::string>(value) + "\"";
+    return "(unknown)";
 }
 
 // Print a float vector.
@@ -308,17 +308,15 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     graph->set_preferred_engine_id_ext("EXAMPLE_PLUGIN_RELU_ENGINE");
 
     auto result = graph->validate();
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "validate"))
     {
-        std::cerr << "  ERROR: validate failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
 
     result = graph->build_operation_graph(handle);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "build_operation_graph"))
     {
-        std::cerr << "  ERROR: build_operation_graph failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
@@ -326,9 +324,8 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     // Query available engines and their knobs
     std::vector<int64_t> rankedEngineIds;
     result = graph->get_ranked_engine_ids(rankedEngineIds);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "get_ranked_engine_ids"))
     {
-        std::cerr << "  ERROR: get_ranked_engine_ids failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
@@ -344,9 +341,8 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
 
     std::vector<Knob> knobs;
     result = graph->get_knobs_for_engine(engineId, knobs);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "get_knobs_for_engine"))
     {
-        std::cerr << "  ERROR: get_knobs_for_engine failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
@@ -364,25 +360,22 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     std::cout << "  Setting example.relu.negative_slope = 0.1\n";
 
     result = graph->create_execution_plan_ext(engineId, settings);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "create_execution_plan_ext"))
     {
-        std::cerr << "  ERROR: create_execution_plan_ext failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
 
     result = graph->check_support();
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "check_support"))
     {
-        std::cerr << "  ERROR: check_support failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
 
     result = graph->build_plans();
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "build_plans"))
     {
-        std::cerr << "  ERROR: build_plans failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
@@ -419,9 +412,8 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     variantPack[2] = dOutput;
 
     result = graph->execute(handle, variantPack, nullptr);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "execute"))
     {
-        std::cerr << "  ERROR: execute failed: " << result.err_msg << "\n";
         static_cast<void>(hipFree(dInput));
         static_cast<void>(hipFree(dOutput));
         hipdnnDestroy(handle);
@@ -536,9 +528,8 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
     // Use the build() convenience method (contrasts with Scenario 1's explicit
     // 6-step sequence, showing both API styles)
     auto result = graph->build(handle);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "build"))
     {
-        std::cerr << "  ERROR: build failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
@@ -582,9 +573,8 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
     variantPack[yOut->get_uid()] = yTensor.memory().deviceData();
 
     result = graph->execute(handle, variantPack, nullptr);
-    if(result.code != ErrorCode::OK)
+    if(!checkGraphResult(result, "execute"))
     {
-        std::cerr << "  ERROR: execute failed: " << result.err_msg << "\n";
         hipdnnDestroy(handle);
         return false;
     }
@@ -732,7 +722,7 @@ static bool scenario3_PluginLoadingModes(const std::string& pluginDir, bool hasG
         return false;
     }
 
-    std::cout << "  Loaded plugins (ABSOLUTE -- only our plugin):\n";
+    std::cout << "  Loaded plugins (ABSOLUTE, only our plugin):\n";
     printLoadedPlugins(handle);
 
     if(!verifyPluginPresence(handle, "ABSOLUTE loading"))

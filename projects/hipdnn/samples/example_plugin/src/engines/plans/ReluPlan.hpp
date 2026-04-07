@@ -1,6 +1,11 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE REFERENCE: This file demonstrates the Plan pattern, compile() for HIPRTC kernel
+// compilation and execute() for kernel launch. The _compiledProgram member keeps the HIP module
+// alive for the lifetime of the _kernel function pointer. Replace this file with the Plan for
+// your operation.
+
 #pragma once
 
 #include <cstddef>

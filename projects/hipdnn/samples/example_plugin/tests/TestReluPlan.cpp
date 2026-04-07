@@ -1,6 +1,14 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
+// TEMPLATE ADAPTATION: Demonstrates the testing pattern for Plans. Key test categories:
+// (1) compile: verify correct kernel filename and function name via mock expectations.
+// (2) execute: verify grid/block dimensions and kernel launch.
+// (3) Error handling: verify missing buffers throw.
+// The mock chain pattern (MockKernelCompiler -> MockCompiledProgram -> MockRunnableKernel) with raw
+// pointer retention for EXPECT_CALL is reusable for your Plan tests.
+// Pick-and-choose which tests are useful for you sitation and adapt as needed.
+
 #include <gtest/gtest.h>
 
 #include <cstdint>
@@ -32,7 +40,7 @@ protected:
     MockKernelCompiler mockCompiler;
     ExamplePluginHandle handle;
 
-    // Raw pointers for verification -- the plan takes ownership through unique_ptr
+    // Raw pointers for verification. The plan takes ownership through unique_ptr.
     MockCompiledProgram* rawCompiledProgram = nullptr;
     MockRunnableKernel* rawKernel = nullptr;
 
