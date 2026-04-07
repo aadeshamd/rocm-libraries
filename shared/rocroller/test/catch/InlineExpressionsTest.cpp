@@ -41,32 +41,11 @@
 #include <rocRoller/KernelGraph/Utils.hpp>
 #include <rocRoller/Utilities/Logging.hpp>
 #include <rocRoller/Utilities/Settings_fwd.hpp>
-#include <variant>
 
 using namespace rocRoller;
 
 namespace InlineExpressionsTest
 {
-    // Helper function to get all assign nodes of a particular expression type from the graph
-    template <typename ExpressionType>
-    std::vector<int> getAssignNodes(KernelGraph::KernelGraph const& graph)
-    {
-        using namespace rocRoller::KernelGraph;
-        using namespace ControlGraph;
-
-        std::vector<int> expressionNodes;
-        for(auto const& node : graph.control.getNodes<Assign>())
-        {
-            auto assign = graph.control.get<Assign>(node);
-            if(std::holds_alternative<ExpressionType>(*assign->expression))
-            {
-                expressionNodes.push_back(node);
-            }
-        }
-
-        return expressionNodes;
-    }
-
     TEST_CASE("InlineExpressions transformation works", "[kernel-graph][graph-transforms]")
     {
         using namespace rocRoller::KernelGraph;
@@ -201,6 +180,10 @@ namespace InlineExpressionsTest
             // NOP
             // a = 2 + 1
 
+            rocRoller::KernelGraph::KernelGraph graph;
+
+            auto kernel = graph.control.addElement(Kernel());
+
             // a = 2
             int    coord = graph.coordinates.addElement(Linear{});
             Assign writeNode;
@@ -218,11 +201,11 @@ namespace InlineExpressionsTest
             int incIdx = graph.control.addElement(incNode);
             graph.mapper.connect(incIdx, coord, NaryArgument::DEST);
 
-            // Insert nodes after node 186, which is a StoreTiled node with no outgoing edges
-            insertAfter(graph, 186, writeIdx, writeIdx);
+            // Insert nodes under kernel node
+            graph.control.addElement(Body(), {kernel}, {writeIdx});
             insertAfter(graph, writeIdx, incIdx, incIdx);
 
-            CHECK(graph.control.getOutputNodeIndices<Sequence>(186).to<std::vector>().back()
+            CHECK(graph.control.getOutputNodeIndices<Body>(kernel).to<std::vector>().back()
                   == writeIdx);
             CHECK(graph.control.getOutputNodeIndices<Sequence>(writeIdx).to<std::vector>().back()
                   == incIdx);
@@ -237,9 +220,9 @@ namespace InlineExpressionsTest
             CHECK(std::get<int>(Expression::evaluate(*expr.rhs)) == 1);
 
             // Make sure everything is still connected correctly
-            // Child of node 186 should be a NOP now
+            // Child of kernel node should be a NOP now
             int maybeNOPIdx
-                = graph.control.getOutputNodeIndices<Sequence>(186).to<std::vector>().back();
+                = graph.control.getOutputNodeIndices<Body>(kernel).to<std::vector>().back();
             CHECK(graph.control.get<NOP>(maybeNOPIdx).has_value());
             // Child of NOP should be inlined add expression
             CHECK(graph.control.getOutputNodeIndices<Sequence>(maybeNOPIdx).to<std::vector>().back()
@@ -258,6 +241,10 @@ namespace InlineExpressionsTest
             // a = 1
             // b = 2 * a
             // c = a + 1
+
+            rocRoller::KernelGraph::KernelGraph graph;
+
+            auto kernel = graph.control.addElement(Kernel());
 
             // a = 1
             int    coordA = graph.coordinates.addElement(Linear{});
@@ -288,12 +275,12 @@ namespace InlineExpressionsTest
             int idxC = graph.control.addElement(nodeC);
             graph.mapper.connect(idxC, coordC, NaryArgument::DEST);
 
-            // Insert nodes after node 186, which is a StoreTiled node with no outgoing edges
-            insertAfter(graph, 186, idxA, idxA);
+            // Insert nodes under the kernel node
+            graph.control.addElement(Body(), {kernel}, {idxA});
             insertAfter(graph, idxA, idxB, idxB);
             insertAfter(graph, idxB, idxC, idxC);
 
-            CHECK(graph.control.getOutputNodeIndices<Sequence>(186).to<std::vector>().back()
+            CHECK(graph.control.getOutputNodeIndices<Body>(kernel).to<std::vector>().back()
                   == idxA);
             CHECK(graph.control.getOutputNodeIndices<Sequence>(idxA).to<std::vector>().back()
                   == idxB);
@@ -301,13 +288,7 @@ namespace InlineExpressionsTest
                   == idxC);
 
             // Expect that none of these are candidates
-            for(const auto& candidate : InlineExpressionsDetail::findInliningCandidates(graph))
-            {
-                CHECK(candidate.m_coordinate != coordA);
-                CHECK(candidate.m_writingNode != idxA);
-                CHECK(candidate.m_readingNode != idxB);
-                CHECK(candidate.m_readingNode != idxC);
-            }
+            CHECK(InlineExpressionsDetail::findInliningCandidates(graph).size() == 0);
         }
 
         SECTION("Write-read-write-read")
@@ -322,6 +303,10 @@ namespace InlineExpressionsTest
             // b = 1 + 1
             // NOP
             // c = 2 * 2
+
+            rocRoller::KernelGraph::KernelGraph graph;
+
+            auto kernel = graph.control.addElement(Kernel());
 
             // a = 1
             int    coordA = graph.coordinates.addElement(Linear{});
@@ -358,13 +343,13 @@ namespace InlineExpressionsTest
             int idxC = graph.control.addElement(nodeC);
             graph.mapper.connect(idxC, coordC, NaryArgument::DEST);
 
-            // Insert nodes after node 186, which is a StoreTiled node with no outgoing edges
-            insertAfter(graph, 186, idxA, idxA);
+            // Insert nodes under the kernel node
+            graph.control.addElement(Body(), {kernel}, {idxA});
             insertAfter(graph, idxA, idxB, idxB);
             insertAfter(graph, idxB, idxA2, idxA2);
             insertAfter(graph, idxA2, idxC, idxC);
 
-            CHECK(graph.control.getOutputNodeIndices<Sequence>(186).to<std::vector>().back()
+            CHECK(graph.control.getOutputNodeIndices<Body>(kernel).to<std::vector>().back()
                   == idxA);
             CHECK(graph.control.getOutputNodeIndices<Sequence>(idxA).to<std::vector>().back()
                   == idxB);
@@ -372,6 +357,8 @@ namespace InlineExpressionsTest
                   == idxA2);
             CHECK(graph.control.getOutputNodeIndices<Sequence>(idxA2).to<std::vector>().back()
                   == idxC);
+
+            std::cout << std::string(graph.toDOT()) << std::endl;
 
             // Apply InlineExpressions
             graph = transform<InlineExpressions>(graph);
@@ -389,9 +376,9 @@ namespace InlineExpressionsTest
             CHECK(std::get<int>(Expression::evaluate(*addExpr.rhs)) == 1);
 
             // Make sure everything is still connected correctly
-            // Child of node 186 should be a NOP now
+            // Child of kernel node should be a NOP now
             int maybeNOPIdx
-                = graph.control.getOutputNodeIndices<Sequence>(186).to<std::vector>().back();
+                = graph.control.getOutputNodeIndices<Body>(kernel).to<std::vector>().back();
             CHECK(graph.control.get<NOP>(maybeNOPIdx).has_value());
             // Child of NOP should be node B - inlined multiply expression
             CHECK(graph.control.getOutputNodeIndices<Sequence>(maybeNOPIdx).to<std::vector>().back()
