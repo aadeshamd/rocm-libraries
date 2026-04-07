@@ -26,21 +26,6 @@
 #define CK_TILE_CONCEPTS 0
 #endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
-// Mark functions as STATIC_EVAL to enable compile-time evaluation when possible, while ensuring
-// compatibility if consteval is not supported
-//
-// TODO: CI compiler incorrectly defines STATIC_EVAL as consteval despite `-DCK_CXX_STANDARD="17"`,
-// so hardcode it here for now.
-#if 0
-#if defined(__cpp_consteval) && __cpp_consteval >= 201811L
-#define STATIC_EVAL consteval
-#else
-#define STATIC_EVAL constexpr
-#endif
-#else
-#define STATIC_EVAL constexpr
-#endif
-
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
     ([]() { static_assert(!((cnt) >> 6), "VMCNT only has 6 bits"); }(), \
