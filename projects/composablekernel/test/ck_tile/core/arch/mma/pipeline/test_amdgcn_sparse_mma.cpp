@@ -166,65 +166,107 @@ TEST(SparseMMATrait, SparseSelector)
     });
 }
 
+// ---------------------------------------------------------------------------
+// Live GPU pipeline tests with full matrix verification
+// ---------------------------------------------------------------------------
+
+// Kernel template: constructs SparseMmaPipeline internally using device-side get_compiler_target().
+// Uses void* for data to avoid host/device symbol mismatches.
 template <typename AType,
           typename BType,
           typename CType,
           uint32_t WaveTileM,
           uint32_t WaveTileN,
-          uint32_t WaveTileK>
-__global__ void test_sparse_accum_over_k(void* a, void* b, void* c, void* out)
+          uint32_t WaveTileK,
+          MmaAccumPolicy AccumPolicy>
+__global__ void
+sparse_pipeline_kernel(const void* a_per_lane, const void* b_per_lane, void* c_per_lane)
 {
-    using Pipeline = SparseMmaPipeline<AType, BType, CType, WaveTileM, WaveTileN, WaveTileK>;
+    using CompilerTarget = decltype(get_compiler_target());
+    using Pipeline       = SparseMmaPipeline<AType,
+                                             BType,
+                                             CType,
+                                             WaveTileM,
+                                             WaveTileN,
+                                             WaveTileK,
+                                             AccumPolicy,
+                                             CompilerTarget>;
 
     using AVecType = typename Pipeline::AVecType;
     using BVecType = typename Pipeline::BVecType;
     using CVecType = typename Pipeline::CVecType;
 
-    static constexpr uint32_t kIters = WaveTileK / Pipeline::MmaOp::kK;
+    const uint32_t lane = threadIdx.x;
 
-    // Initialize the accumulator
-    CVecType result = *reinterpret_cast<CVecType*>(c);
+    AVecType a;
+    BVecType b;
+    CVecType c;
+    __builtin_memcpy(
+        &a, static_cast<const uint8_t*>(a_per_lane) + lane * sizeof(AVecType), sizeof(AVecType));
+    __builtin_memcpy(
+        &b, static_cast<const uint8_t*>(b_per_lane) + lane * sizeof(BVecType), sizeof(BVecType));
+    __builtin_memset(&c, 0, sizeof(CVecType));
 
-    // Accumulate input AxB over WaveTileK/FragK iterations
-    for(uint32_t i = 0; i < kIters; ++i)
+    if constexpr(MmaOpTraits<typename Pipeline::MmaOp>::IsSupported)
     {
-        result = Pipeline::exec(
-            *reinterpret_cast<AVecType*>(a), *reinterpret_cast<BVecType*>(b), result);
+        Pipeline::exec(a, b, c);
+        __builtin_memcpy(
+            static_cast<uint8_t*>(c_per_lane) + lane * sizeof(CVecType), &c, sizeof(CVecType));
     }
-
-    *reinterpret_cast<CVecType*>(out) = result;
 }
 
-// Live test on real hardware for sparse selection and execution.
-TEST(SparseMMATrait, MmaSelector_Sparse_F16_F16_F32_16x16x32_Real)
+namespace {
+const auto should_skip_sparse = [](amdgcn_target_id currentArchId) {
+    bool isSupportedWmma = (currentArchId >= amdgcn_target_id::GFX1200) &&
+                           (currentArchId <= amdgcn_target_id::GFX12_GENERIC);
+    bool isSupportedMfma =
+        (currentArchId >= amdgcn_target_id::GFX942) && (currentArchId <= amdgcn_target_id::GFX950);
+    return ((currentArchId == amdgcn_target_id::HOST) || !(isSupportedWmma || isSupportedMfma));
+};
+} // namespace
+
+// PipelineFactory: maps a CompilerTarget type to a SparseMmaPipeline type.
+template <typename Target>
+struct SparsePipelineFactory_16x16x32
 {
-    MmaPipelineTest<> test;
-    const auto should_skip = [](amdgcn_target_id currentArchId) {
-        bool isSupportedWmma = (currentArchId >= amdgcn_target_id::GFX1200) &&
-                               (currentArchId <= amdgcn_target_id::GFX12_GENERIC);
-        bool isSupportedMfma = (currentArchId >= amdgcn_target_id::GFX942) &&
-                               (currentArchId <= amdgcn_target_id::GFX950);
-        return ((currentArchId == amdgcn_target_id::HOST) || !(isSupportedWmma || isSupportedMfma));
+    using type =
+        SparseMmaPipeline<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, MmaAccumPolicy::ROW_MAJOR, Target>;
+};
+
+template <typename Target>
+struct SparsePipelineFactory_16x16x64
+{
+    using type =
+        SparseMmaPipeline<fp16_t, fp16_t, fp32_t, 16u, 16u, 64u, MmaAccumPolicy::ROW_MAJOR, Target>;
+};
+
+// Full matrix verification: 16x16x32 single-fragment sparse pipeline
+TEST(SparseMmaPipeline, FullMatrixVerify_16x16x32)
+{
+    const auto kernel = [](uint32_t waveSize, void* a, void* b, void* c) {
+        sparse_pipeline_kernel<fp16_t, fp16_t, fp32_t, 16u, 16u, 32u, MmaAccumPolicy::ROW_MAJOR>
+            <<<1, waveSize>>>(a, b, c);
     };
-    const std::function<fp32_t(uint32_t)> validator = [](uint32_t waveTileK) {
-        return static_cast<fp32_t>(waveTileK) / 2;
-    };
-    const auto kernel = [](uint32_t waveSize, void* a, void* b, void* c, void* out) {
-        test_sparse_accum_over_k<MmaPipelineTest<>::AType,
-                                 MmaPipelineTest<>::BType,
-                                 MmaPipelineTest<>::CType,
-                                 MmaPipelineTest<>::WaveTileM,
-                                 MmaPipelineTest<>::WaveTileN,
-                                 MmaPipelineTest<>::WaveTileK><<<1, waveSize>>>(a, b, c, out);
-    };
-    // Initialize A with 2:4 structured sparsity pattern: {1, 0, 1, 0, ...}
-    // This ensures the sparse compression transform is actually exercised —
-    // a no-op or broken compression would pass zeros through, causing incorrect results.
-    const std::function<fp16_t(size_t)> sparseAInit = [](size_t i) -> fp16_t {
-        return (i % 2 == 0) ? type_convert<fp16_t>(1) : type_convert<fp16_t>(0);
-    };
-    test.test_pipeline(should_skip, kernel, validator, sparseAInit);
+
+    mma_pipeline_test::run_pipeline_matrix_test<SparsePipelineFactory_16x16x32>(
+        16u, 16u, 32u, should_skip_sparse, kernel, /*isSparse=*/true);
 }
+
+// Multi-fragment K: 16x16x64 -> 2 K fragments, tests internal K iteration
+TEST(SparseMmaPipeline, FullMatrixVerify_16x16x64)
+{
+    const auto kernel = [](uint32_t waveSize, void* a, void* b, void* c) {
+        sparse_pipeline_kernel<fp16_t, fp16_t, fp32_t, 16u, 16u, 64u, MmaAccumPolicy::ROW_MAJOR>
+            <<<1, waveSize>>>(a, b, c);
+    };
+
+    mma_pipeline_test::run_pipeline_matrix_test<SparsePipelineFactory_16x16x64>(
+        16u, 16u, 64u, should_skip_sparse, kernel, /*isSparse=*/true);
+}
+
+// ---------------------------------------------------------------------------
+// Sparse transform unit tests (unchanged)
+// ---------------------------------------------------------------------------
 
 template <uint32_t CompressionRatio, typename Vec>
 __global__ void test_sparse_transform(void* a, void* idx)
