@@ -210,10 +210,10 @@ namespace rocRollerTest::Graphs
         std::vector<size_t> unitStrides
             = m_problem.literalStrides ? std::vector<size_t>({(size_t)1}) : std::vector<size_t>({});
 
-        m_tagTensorA = m_command->addOperation(rocRoller::Operations::Tensor(
-            2, m_ta, {}, unitStrides)); // A
-        m_tagA       = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorA));
-        auto tagA    = m_tagA;
+        m_tagTensorA
+            = m_command->addOperation(rocRoller::Operations::Tensor(2, m_ta, {}, unitStrides)); // A
+        m_tagA    = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorA));
+        auto tagA = m_tagA;
 
         if(m_problem.scaleAMode == Operations::ScaleMode::Separate)
         {
@@ -225,10 +225,10 @@ namespace rocRollerTest::Graphs
                 tagA, 2, m_tagScaleA, {1ul, static_cast<size_t>(m_problem.scaleBlockSize)}));
         }
 
-        m_tagTensorB = m_command->addOperation(rocRoller::Operations::Tensor(
-            2, m_tb, {}, unitStrides)); // B
-        m_tagB       = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorB));
-        auto tagB    = m_tagB;
+        m_tagTensorB
+            = m_command->addOperation(rocRoller::Operations::Tensor(2, m_tb, {}, unitStrides)); // B
+        m_tagB    = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(m_tagTensorB));
+        auto tagB = m_tagB;
 
         if(m_problem.scaleBMode == Operations::ScaleMode::Separate)
         {

@@ -150,12 +150,12 @@ namespace GEMMDriverTest
             std::vector<size_t> unitStrides
                 = gemm.literalStrides ? std::vector<size_t>({(size_t)1}) : std::vector<size_t>({});
 
-            auto tagTensorA = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataType, {}, unitStrides)); // A
+            auto tagTensorA = command->addOperation(
+                rocRoller::Operations::Tensor(2, dataType, {}, unitStrides)); // A
             auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorA));
 
-            auto tagTensorB = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataType, {}, unitStrides)); // B
+            auto tagTensorB = command->addOperation(
+                rocRoller::Operations::Tensor(2, dataType, {}, unitStrides)); // B
             auto tagLoadB = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorB));
 
             auto tagTensorC = command->addOperation(

@@ -80,7 +80,6 @@ namespace rocRoller
                          std::vector<size_t> strides,
                          size_t              offset = 0);
 
-
         static TensorDescriptor
             ShuffledNoPadding(DataType t, std::vector<size_t> sizes, std::vector<size_t> dimOrder);
 

@@ -454,9 +454,9 @@ namespace GEMMTests
 
             if(gemm.scaleAMode == Operations::ScaleMode::Separate)
             {
-                bool scalePreTiledA  = !gemm.scalePretileA.empty();
-                tagTensorScaleA      = command->addOperation(rocRoller::Operations::Tensor(
-                    2, gemm.scaleTypeA, {}, unitStrides));
+                bool scalePreTiledA = !gemm.scalePretileA.empty();
+                tagTensorScaleA     = command->addOperation(
+                    rocRoller::Operations::Tensor(2, gemm.scaleTypeA, {}, unitStrides));
                 auto scaleLoadInputA = *tagTensorScaleA;
                 if(scalePreTiledA)
                 {
@@ -493,9 +493,9 @@ namespace GEMMTests
 
             if(gemm.scaleBMode == Operations::ScaleMode::Separate)
             {
-                bool scalePreTiledB  = !gemm.scalePretileB.empty();
-                tagTensorScaleB      = command->addOperation(rocRoller::Operations::Tensor(
-                    2, gemm.scaleTypeB, {}, unitStrides));
+                bool scalePreTiledB = !gemm.scalePretileB.empty();
+                tagTensorScaleB     = command->addOperation(
+                    rocRoller::Operations::Tensor(2, gemm.scaleTypeB, {}, unitStrides));
                 auto scaleLoadInputB = *tagTensorScaleB;
                 if(scalePreTiledB)
                 {
