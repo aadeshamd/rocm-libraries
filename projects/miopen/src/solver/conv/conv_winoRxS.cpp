@@ -238,21 +238,21 @@ inline bool IsShaderConstraintsMetV21(const ProblemDescription& problem,
 
     // clang-format off
     // Check implementation limits.
-    return N < std::pow(2, 16)
-        && C < std::pow(2, 16)
-        && H < std::pow(2, 16)
-        && W < std::pow(2, 16)
-        && K < std::pow(2, 16)
-        && S < std::pow(2, 16)
-        && R < std::pow(2, 16)
-        && OH < std::pow(2, 16)
-        && OW < std::pow(2, 16)
-        && problem.GetPadW() < std::pow(2, 16)
-        && problem.GetPadH() < std::pow(2, 16)
-        && C * R * S < std::pow(2, 22)
-        && K * R * S < std::pow(2, 28)
-        && ((o_N_stride_OHOW < std::pow(2, 29) && d_N_stride_HW < std::pow(2, 29))
-           || (stride_one && o_N_stride < std::pow(2, 30) && d_N_stride < std::pow(2, 30)
+    return static_cast<uint64_t>(N)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(C)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(H)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(W)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(K)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(S)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(R)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(OH)             < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(OW)             < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(problem.GetPadW()) < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(problem.GetPadH()) < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(C) * R * S      < (uint64_t{1} << 22)
+        && static_cast<uint64_t>(K) * R * S      < (uint64_t{1} << 28)
+        && ((o_N_stride_OHOW < (uint64_t{1} << 29) && d_N_stride_HW < (uint64_t{1} << 29))
+           || (stride_one && o_N_stride < (uint64_t{1} << 30) && d_N_stride < (uint64_t{1} << 30)
            && (N == 1 || num_tiles % 16 == 0)));
     // clang-format on
 }
@@ -270,22 +270,22 @@ inline bool IsShaderConstraintsMetV30(const ProblemDescription& problem,
 {
     // clang-format off
     // Check implementation limits.
-    return N < std::pow(2, 16)
-        && C < std::pow(2, 16)
-        && H < std::pow(2, 16)
-        && W < std::pow(2, 16)
-        && K < std::pow(2, 16)
-        && S < std::pow(2, 16)
-        && R < std::pow(2, 16)
-        && OH < std::pow(2, 16)
-        && OW < std::pow(2, 16)
-        && problem.GetPadW() < std::pow(2, 16)
-        && problem.GetPadH() < std::pow(2, 16)
-        && H * W < std::pow(2, 29)
-        && K * R * S < std::pow(2, 28)
-        && (C + 1) * H * W < std::pow(2, 30)
-        && (C + 1) * R * S < std::pow(2, 22)
-        && (K + 1) * OH * OW < std::pow(2, 30);
+    return static_cast<uint64_t>(N)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(C)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(H)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(W)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(K)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(S)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(R)              < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(OH)             < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(OW)             < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(problem.GetPadW()) < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(problem.GetPadH()) < (uint64_t{1} << 16)
+        && static_cast<uint64_t>(H) * W             < (uint64_t{1} << 29)
+        && static_cast<uint64_t>(K) * R * S         < (uint64_t{1} << 28)
+        && (static_cast<uint64_t>(C) + 1) * H * W   < (uint64_t{1} << 30)
+        && (static_cast<uint64_t>(C) + 1) * R * S   < (uint64_t{1} << 22)
+        && (static_cast<uint64_t>(K) + 1) * OH * OW < (uint64_t{1} << 30);
     // clang-format on
 }
 
@@ -306,9 +306,11 @@ inline bool IsShaderConstraintsMet(const ProblemDescription& problem,
     /// \todo Either remove WrW related code or re-use function from RxS
     if(problem.IsDirectionBackwardData())
     {
-        if(!(0 <= problem.GetBackwardPadW() && problem.GetBackwardPadW() < std::pow(2, 16)))
+        if(!(0 <= problem.GetBackwardPadW() &&
+             static_cast<uint64_t>(problem.GetBackwardPadW()) < (uint64_t{1} << 16)))
             return false;
-        if(!(0 <= problem.GetBackwardPadH() && problem.GetBackwardPadH() < std::pow(2, 16)))
+        if(!(0 <= problem.GetBackwardPadH() &&
+             static_cast<uint64_t>(problem.GetBackwardPadH()) < (uint64_t{1} << 16)))
             return false;
     }
 
