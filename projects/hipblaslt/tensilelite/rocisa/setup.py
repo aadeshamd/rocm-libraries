@@ -19,10 +19,11 @@ class CMakeBuild(build_ext):
             compilerpath = os.path.join(rocm_path, 'bin/amdclang++')
             cmakeargs = [
                 "cmake",
-                "--preset rocisa",
+                "--preset", "rocisa",
                 f"-S{source_dir}",
                 f"-B{self.build_temp}",
                 f"-DCMAKE_CXX_COMPILER={compilerpath}",
+                f"-DCMAKE_PREFIX_PATH={rocm_path}",
                 "-DCMAKE_BUILD_TYPE=Release",
                 f"-DPython_EXECUTABLE={sys.executable}",
             ]
