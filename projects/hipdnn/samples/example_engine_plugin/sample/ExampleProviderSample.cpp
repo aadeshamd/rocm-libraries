@@ -192,7 +192,7 @@ static void printVector(const std::string& label, const std::vector<float>& v)
 }
 
 // Print a 2D matrix stored row-major.
-static void printMatrix(const std::string& label, const std::vector<float>& m, int rows, int cols)
+static void printMatrix(const std::string& label, const float* m, int rows, int cols)
 {
     std::cout << "  " << label << " (" << rows << "x" << cols << "):\n";
     for(int r = 0; r < rows; ++r)
@@ -208,6 +208,7 @@ static void printMatrix(const std::string& label, const std::vector<float>& m, i
         }
         std::cout << "]\n";
     }
+    std::cout << "\n";
 }
 
 // Query and print loaded plugin paths via the frontend API.
@@ -266,8 +267,9 @@ static bool verifyPluginPresence(hipdnnHandle_t handle, const std::string& modeL
 static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
 {
     std::cout << "\n=== Scenario 1: ReLU Forward with Engine Selection and Knob Modification ===\n";
-    std::cout << "Demonstrates the explicit 6-step graph build sequence, engine\n"
-              << "selection by name, and knob modification for leaky ReLU.\n\n";
+    std::cout
+        << "Demonstrates the explicit 6-step graph build sequence, engine selection by name,\n"
+        << "and knob modification for leaky ReLU.\n\n";
 
     // Use ABSOLUTE mode so the example plugin is loaded regardless of
     // system-installed plugins
@@ -304,7 +306,7 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     y->set_uid(2).set_data_type(DataType::FLOAT).set_output(true);
 
     // Select the example plugin's GPU ReLU engine by name
-    std::cout << "  Selecting engine: EXAMPLE_PROVIDER_RELU_ENGINE\n";
+    std::cout << "  Selecting engine: EXAMPLE_PROVIDER_RELU_ENGINE\n\n";
     graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_RELU_ENGINE");
 
     auto result = graph->validate();
@@ -357,7 +359,7 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
     // Set negative_slope = 0.1
     std::vector<KnobSetting> settings;
     settings.emplace_back("example.relu.negative_slope", 0.1);
-    std::cout << "  Setting example.relu.negative_slope = 0.1\n";
+    std::cout << "  Setting example.relu.negative_slope = 0.1\n\n";
 
     result = graph->create_execution_plan_ext(engineId, settings);
     if(!checkGraphResult(result, "create_execution_plan_ext"))
@@ -458,7 +460,7 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
         return false;
     }
 
-    std::cout << "  Scenario 1 completed successfully.\n";
+    std::cout << "\n  Scenario 1 completed successfully.\n";
     return true;
 }
 
@@ -468,10 +470,10 @@ static bool scenario1_ReluForward(const std::string& pluginDir, bool hasGpu)
 static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
 {
     std::cout << "\n=== Scenario 2: Convolution Forward with Engine Selection ===\n";
-    std::cout << "Demonstrates ConvFwd graph construction with NCHW/KCRS tensor\n"
-              << "layouts, the build() convenience method, Tensor class for GPU\n"
-              << "memory management, and two verification approaches: hardcoded\n"
-              << "expected values and CPU reference.\n\n";
+    std::cout
+        << "Demonstrates ConvFwd graph construction with NCHW/KCRS tensor layouts, the build()\n"
+        << "convenience method, Tensor class for GPU memory management, and two verification\n"
+        << "approaches: hardcoded expected values and CPU reference.\n\n";
 
     // Use ABSOLUTE mode so the example plugin is loaded regardless of
     // system-installed plugins
@@ -522,7 +524,7 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
     yOut->set_data_type(DataType::FLOAT).set_output(true);
 
     // Select the example plugin's ConvFwd engine by name
-    std::cout << "  Selecting engine: EXAMPLE_PROVIDER_CONV_FWD_ENGINE\n";
+    std::cout << "  Selecting engine: EXAMPLE_PROVIDER_CONV_FWD_ENGINE\n\n";
     graph->set_preferred_engine_id_ext("EXAMPLE_PROVIDER_CONV_FWD_ENGINE");
 
     // Use the build() convenience method (contrasts with Scenario 1's explicit
@@ -583,12 +585,9 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
     yTensor.memory().markDeviceModified();
     auto yHostPtr = yTensor.memory().hostData();
 
-    printMatrix("Input", inputData, static_cast<int>(H), static_cast<int>(W));
-    std::cout << "\n";
-    printMatrix("Filter (all ones)", weightData, static_cast<int>(R), static_cast<int>(S));
-    std::cout << "\n";
-    std::vector<float> outputData(yHostPtr, yHostPtr + N * K * outH * outW);
-    printMatrix("Output", outputData, static_cast<int>(outH), static_cast<int>(outW));
+    printMatrix("Input", inputData.data(), static_cast<int>(H), static_cast<int>(W));
+    printMatrix("Filter (all ones)", weightData.data(), static_cast<int>(R), static_cast<int>(S));
+    printMatrix("Output", yHostPtr, static_cast<int>(outH), static_cast<int>(outW));
 
     // ---- Verification 1: Hardcoded expected values ----
     // With a 4x4 input (values 1-16) and a 3x3 all-ones filter (no padding,
@@ -597,7 +596,7 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
     //   output[0,1] = 2+3+4+6+7+8+10+11+12       = 63
     //   output[1,0] = 5+6+7+9+10+11+13+14+15     = 90
     //   output[1,1] = 6+7+8+10+11+12+14+15+16    = 99
-    std::cout << "\n  Verification 1: Hardcoded expected values\n";
+    std::cout << "  Verification 1: Hardcoded expected values\n";
     std::vector<float> expectedHardcoded = {54.0f, 63.0f, 90.0f, 99.0f};
 
     bool hardcodedCorrect = true;
@@ -669,8 +668,8 @@ static bool scenario2_ConvForward(const std::string& pluginDir, bool hasGpu)
 static bool scenario3_PluginLoadingModes(const std::string& pluginDir, bool hasGpu)
 {
     std::cout << "\n=== Scenario 3: Plugin Loading Modes ===\n";
-    std::cout << "Demonstrates ADDITIVE and ABSOLUTE loading modes with\n"
-              << "presence verification after each mode.\n\n";
+    std::cout << "Demonstrates ADDITIVE and ABSOLUTE loading modes with presence verification "
+                 "after each mode.\n\n";
 
     // ---- ADDITIVE mode ----
     std::cout << "  --- ADDITIVE mode ---\n";
@@ -795,11 +794,11 @@ static bool scenario3_PluginLoadingModes(const std::string& pluginDir, bool hasG
     }
     else
     {
-        std::cout << "\n  NOTE: HIPDNN_PLUGIN_DIR is not set. Set it to demonstrate\n"
-                  << "  environment-variable-based plugin loading.\n";
+        std::cout << "\n  NOTE: HIPDNN_PLUGIN_DIR is not set.\n"
+                  << "  Set it to demonstrate environment-variable-based plugin loading.\n";
     }
 
-    std::cout << "  Scenario 3 completed successfully.\n";
+    std::cout << "\n  Scenario 3 completed successfully.\n";
     return true;
 }
 
