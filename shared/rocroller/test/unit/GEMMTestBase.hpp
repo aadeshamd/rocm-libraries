@@ -518,7 +518,7 @@ namespace GEMMTests
                         tagLoadB,
                         2,
                         scaleInputB,
-                        {static_cast<unsigned int>(gemm.scaleBlockSize), 1}));
+                        {1, static_cast<unsigned int>(gemm.scaleBlockSize)}));
             }
             else if(gemm.scaleBMode == Operations::ScaleMode::SingleScale)
             {

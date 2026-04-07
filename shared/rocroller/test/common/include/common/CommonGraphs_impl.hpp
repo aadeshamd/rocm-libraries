@@ -349,22 +349,22 @@ namespace rocRollerTest::Graphs
         KernelArguments runtimeArgs;
 
         runtimeArgs.append("user0", x);
-        runtimeArgs.append("d_a_size_0", (size_t)nx);
-        runtimeArgs.append("d_a_size_1", (size_t)ny);
-        runtimeArgs.append("d_a_stride_0", (size_t)ny);
-        runtimeArgs.append("d_a_stride_1", (size_t)1);
+        runtimeArgs.append("d_a_size_0", (size_t)ny);
+        runtimeArgs.append("d_a_size_1", (size_t)nx);
+        runtimeArgs.append("d_a_stride_0", (size_t)1);
+        runtimeArgs.append("d_a_stride_1", (size_t)ny);
 
         runtimeArgs.append("user1", y);
-        runtimeArgs.append("d_b_size_0", (size_t)nx);
-        runtimeArgs.append("d_b_size_1", (size_t)ny);
-        runtimeArgs.append("d_b_stride_0", (size_t)ny);
-        runtimeArgs.append("d_b_stride_1", (size_t)1);
+        runtimeArgs.append("d_b_size_0", (size_t)ny);
+        runtimeArgs.append("d_b_size_1", (size_t)nx);
+        runtimeArgs.append("d_b_stride_0", (size_t)1);
+        runtimeArgs.append("d_b_stride_1", (size_t)ny);
 
         runtimeArgs.append("user2", rv);
-        runtimeArgs.append("d_c_size_0", (size_t)nx);
-        runtimeArgs.append("d_c_size_1", (size_t)ny);
-        runtimeArgs.append("d_c_stride_0", (size_t)ny);
-        runtimeArgs.append("d_c_stride_1", (size_t)1);
+        runtimeArgs.append("d_c_size_0", (size_t)ny);
+        runtimeArgs.append("d_c_size_1", (size_t)nx);
+        runtimeArgs.append("d_c_stride_0", (size_t)1);
+        runtimeArgs.append("d_c_stride_1", (size_t)ny);
 
         return runtimeArgs;
     }
@@ -493,16 +493,16 @@ namespace rocRollerTest::Graphs
         KernelArguments runtimeArgs;
 
         runtimeArgs.append("user0", x);
-        runtimeArgs.append("d_a_size_0", (size_t)nx);
-        runtimeArgs.append("d_a_size_1", (size_t)ny);
-        runtimeArgs.append("d_a_stride_0", (size_t)ny);
-        runtimeArgs.append("d_a_stride_1", (size_t)1);
+        runtimeArgs.append("d_a_size_0", (size_t)ny);
+        runtimeArgs.append("d_a_size_1", (size_t)nx);
+        runtimeArgs.append("d_a_stride_0", (size_t)1);
+        runtimeArgs.append("d_a_stride_1", (size_t)ny);
 
         runtimeArgs.append("user2", rv);
-        runtimeArgs.append("d_c_size_0", (size_t)nx);
-        runtimeArgs.append("d_c_size_1", (size_t)ny);
-        runtimeArgs.append("d_c_stride_0", (size_t)ny);
-        runtimeArgs.append("d_c_stride_1", (size_t)1);
+        runtimeArgs.append("d_c_size_0", (size_t)ny);
+        runtimeArgs.append("d_c_size_1", (size_t)nx);
+        runtimeArgs.append("d_c_stride_0", (size_t)1);
+        runtimeArgs.append("d_c_stride_1", (size_t)ny);
 
         return runtimeArgs;
     }

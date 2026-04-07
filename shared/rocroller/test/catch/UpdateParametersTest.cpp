@@ -145,8 +145,9 @@ TEST_CASE("SetUserSize for manually constructed load graph", "[kernel-graph][upd
         = std::make_shared<Expression::Expression>(strideMArg); // Row-major: stride of M is K
     auto strideK = Expression::literal(1u);
 
-    auto subDim0 = kgraph.coordinates.addElement(SubDimension(0, sizeM, strideM));
-    auto subDim1 = kgraph.coordinates.addElement(SubDimension(1, sizeK, strideK));
+    // Fastest-to-slowest ordering: dim 0 = K (stride 1), dim 1 = M (stride M)
+    auto subDim0 = kgraph.coordinates.addElement(SubDimension(0, sizeK, strideK));
+    auto subDim1 = kgraph.coordinates.addElement(SubDimension(1, sizeM, strideM));
 
     // Create MacroTile
     auto tileTag = kgraph.coordinates.addElement(MacroTile());
@@ -230,8 +231,9 @@ TEST_CASE("SetUserSize for manually constructed store graph", "[kernel-graph][up
         = std::make_shared<Expression::Expression>(strideMArg); // Row-major: stride of M is N
     auto strideN = Expression::literal(1u);
 
-    auto subDim0 = kgraph.coordinates.addElement(SubDimension(0, sizeM, strideM));
-    auto subDim1 = kgraph.coordinates.addElement(SubDimension(1, sizeN, strideN));
+    // Fastest-to-slowest ordering: dim 0 = N (stride 1), dim 1 = M (stride M)
+    auto subDim0 = kgraph.coordinates.addElement(SubDimension(0, sizeN, strideN));
+    auto subDim1 = kgraph.coordinates.addElement(SubDimension(1, sizeM, strideM));
 
     // Create User for output tensor
     auto user = kgraph.coordinates.addElement(User({}, "output"));

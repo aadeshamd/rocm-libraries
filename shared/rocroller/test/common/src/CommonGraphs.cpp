@@ -73,7 +73,7 @@ namespace rocRollerTest::Graphs
             m_tagScaleB = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(scaleB));
 
             tagB = m_command->addOperation(
-                rocRoller::Operations::BlockScale(tagB, 2, m_tagScaleB, {32, 1}));
+                rocRoller::Operations::BlockScale(tagB, 2, m_tagScaleB, {1, 32}));
         }
 
         // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
@@ -237,7 +237,7 @@ namespace rocRollerTest::Graphs
             m_tagScaleB = m_command->addOperation(rocRoller::Operations::T_Load_Tiled(scaleB));
 
             tagB = m_command->addOperation(rocRoller::Operations::BlockScale(
-                tagB, 2, m_tagScaleB, {static_cast<size_t>(m_problem.scaleBlockSize), 1ul}));
+                tagB, 2, m_tagScaleB, {1ul, static_cast<size_t>(m_problem.scaleBlockSize)}));
         }
 
         m_tagTensorC

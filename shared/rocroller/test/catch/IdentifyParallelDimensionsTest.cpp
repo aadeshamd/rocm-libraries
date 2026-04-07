@@ -55,7 +55,7 @@ TEST_CASE("identifyParallelDimensionSets works for GEMM", "[kernel-graph]")
 
     auto redundantArgs = KernelGraph::identifyParallelDimensionSets(kgraph);
 
-    std::vector<std::set<int>> ra2 = {{3, 9}, {2, 37}, {10, 38}, {16, 37}, {17, 38}};
+    std::vector<std::set<int>> ra2 = {{3, 10}, {2, 37}, {9, 38}, {16, 37}, {17, 38}};
 
     CHECK(redundantArgs == ra2);
 }
@@ -184,8 +184,8 @@ SCENARIO("IdentifyParallelDimensions transformation works for GEMM", "[kernel-gr
 
                 CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_0_size_0"));
                 CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_0_size_1"));
-                CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_2_size_0"));
-                CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_2_size_1"));
+                CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_2_size_0"));
+                CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_2_size_1"));
                 CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_4_size_0"));
                 CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_4_size_1"));
             }
@@ -331,8 +331,8 @@ SCENARIO("IdentifyParallelDimensions transformation works for scaled GEMM", "[ke
                 CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_2_size_1"));
 
                 // B tensor: K redundant with A, only N retained
-                CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_5_size_0"));
-                CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_5_size_1"));
+                CHECK_THAT(ctx->kernel()->arguments(), HasKernelArgNamed("Tensor_5_size_0"));
+                CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_5_size_1"));
 
                 // ScaleB: K/blockSize matches ScaleA (redundant), N matches B (redundant)
                 CHECK_THAT(ctx->kernel()->arguments(), !HasKernelArgNamed("Tensor_7_size_0"));

@@ -1429,14 +1429,14 @@ namespace KernelGraphTest
 
         std::string expected0 = R".(
             digraph {
-        "coord1"[label="User{Multiply(CommandArgument(Tensor_0_stride_0)I64, CommandArgument(Tensor_0_size_0)I64)I64}(1)"];
+        "coord1"[label="User{Multiply(CommandArgument(Tensor_0_stride_1)I64, CommandArgument(Tensor_0_size_1)I64)I64}(1)"];
         "coord2"[label="SubDimension{0, CommandArgument(Tensor_0_size_0)I64}(2)"];
         "coord3"[label="SubDimension{1, CommandArgument(Tensor_0_size_1)I64}(3)"];
         "coord4"[label="MacroTile{NA}(2/LDS/ROW_MAJOR){16,8}-(4,2)(4)"];
         "coord5"[label="Split(5)",shape=box];
         "coord6"[label="ConstructMacroTile(6)",shape=box];
         "coord7"[label="DataFlow(7)",shape=box];
-        "coord8"[label="User{Multiply(CommandArgument(Tensor_2_stride_0)I64, CommandArgument(Tensor_2_size_0)I64)I64}(8)"];
+        "coord8"[label="User{Multiply(CommandArgument(Tensor_2_stride_1)I64, CommandArgument(Tensor_2_size_1)I64)I64}(8)"];
         "coord9"[label="SubDimension{0, CommandArgument(Tensor_2_size_0)I64}(9)"];
         "coord10"[label="SubDimension{1, CommandArgument(Tensor_2_size_1)I64}(10)"];
         "coord11"[label="MacroTile{NA}(2/VGPR/ROW_MAJOR){16,8}-(4,2)(11)"];
@@ -1449,7 +1449,7 @@ namespace KernelGraphTest
         "coord18"[label="DataFlow(18)",shape=box];
         "coord19"[label="MacroTile{NA}(2/VGPR/ROW_MAJOR){16,8}-(4,2)(19)"];
         "coord20"[label="DataFlow(20)",shape=box];
-        "coord21"[label="User{Multiply(CommandArgument(Tensor_8_stride_0)I64, CommandArgument(Tensor_8_size_0)I64)I64}(21)"];
+        "coord21"[label="User{Multiply(CommandArgument(Tensor_8_stride_1)I64, CommandArgument(Tensor_8_size_1)I64)I64}(21)"];
         "coord22"[label="SubDimension{0, CommandArgument(Tensor_8_size_0)I64}(22)"];
         "coord23"[label="SubDimension{1, CommandArgument(Tensor_8_size_1)I64}(23)"];
         "coord24"[label="DestructMacroTile(24)",shape=box];
@@ -2030,7 +2030,7 @@ namespace KernelGraphTest
 
         if(override)
         {
-            example.setLiteralStrides({(size_t)0, (size_t)1});
+            example.setLiteralStrides({(size_t)1, (size_t)0});
         }
 
         size_t nx = 256;
