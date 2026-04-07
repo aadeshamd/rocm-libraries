@@ -120,6 +120,7 @@ namespace TensileLite
         void BenchmarkTimer::preSolution(ContractionSolution* const solution)
         {
             m_numEnqueuesInSolution = 0;
+            m_numSyncsCompleted     = 0;
             m_timeInSolution        = double_millis::zero();
             m_skip_slow_solution    = false;
 
@@ -244,18 +245,11 @@ namespace TensileLite
                 return;
 
             double_millis totalTime(0.0);
-
-            // Skip the first warmup event (cold start) when multiple warmups are available
-            size_t warmupStartIdx = startEvents->size() == 1 ? 0 : 1;
-            float enqTime = 0.0f;
+            float         eventMs = 0.0f;
             HIP_CHECK_EXC(hipEventSynchronize(stopEvents->back().back()));
-            for(size_t i = warmupStartIdx; i < startEvents->size(); i++)
-            {
-                HIP_CHECK_EXC(hipEventElapsedTime(
-                    &enqTime, startEvents->at(i).front(), stopEvents->at(i).back()));
-
-                totalTime += double_millis(enqTime);
-            }
+            HIP_CHECK_EXC(
+                hipEventElapsedTime(&eventMs, startEvents->front().front(), stopEvents->back().back()));
+            totalTime = double_millis(eventMs);
             if(totalTime < m_currentBestWarmUpTime)
                 m_currentBestWarmUpTime = totalTime;
             else if(totalTime * m_skip_slow_solution_ratio > m_currentBestWarmUpTime)
@@ -333,6 +327,9 @@ namespace TensileLite
 
         void BenchmarkTimer::preEnqueues(hipStream_t const& stream)
         {
+            if(m_numSyncsCompleted != 0)
+                return;
+
             if(!m_useGPUTimer)
             {
                 HIP_CHECK_EXC(hipDeviceSynchronize());
@@ -350,6 +347,9 @@ namespace TensileLite
                                           TimingEvents const& stopEvents,
                                           hipStream_t const&  stream)
         {
+            if(m_numSyncsCompleted + 1 < m_numSyncsInBenchmark)
+                return;
+
             if(!m_useGPUTimer)
             {
                 HIP_CHECK_EXC(hipDeviceSynchronize());
@@ -366,30 +366,21 @@ namespace TensileLite
                                               TimingEvents const&            startEvents,
                                               TimingEvents const&            stopEvents)
         {
+            m_numEnqueuesInSolution += startEvents->size();
+            m_numSyncsCompleted++;
+
+            if(m_numSyncsCompleted < m_numSyncsInBenchmark)
+                return;
+
             double_millis totalTime(0.0);
 
             if(m_useGPUTimer)
             {
-                if((start == nullptr) && (stop == nullptr))
-                {
-                    float enqTime = 0.0f;
-                    HIP_CHECK_EXC(hipEventSynchronize(stopEvents->back().back()));
-                    for(size_t i = 0; i < startEvents->size(); i++)
-                    {
-                        HIP_CHECK_EXC(hipEventElapsedTime(
-                            &enqTime, startEvents->at(i).front(), stopEvents->at(i).back()));
-
-                        totalTime += double_millis(enqTime);
-                    }
-                }
-                else
-                {
-                    float eventMs = 0.0f;
-                    static_cast<void>(hipEventElapsedTime(&eventMs, start, stop));
-                    totalTime = double_millis(eventMs);
-                    static_cast<void>(hipEventDestroy(start));
-                    static_cast<void>(hipEventDestroy(stop));
-                }
+                float eventMs = 0.0f;
+                static_cast<void>(hipEventElapsedTime(&eventMs, start, stop));
+                totalTime = double_millis(eventMs);
+                static_cast<void>(hipEventDestroy(start));
+                static_cast<void>(hipEventDestroy(stop));
             }
             else
             {
@@ -398,7 +389,6 @@ namespace TensileLite
 
             m_timeInSolution += totalTime;
             m_totalGPUTime += totalTime;
-            m_numEnqueuesInSolution += startEvents->size();
 
             // Report GPU execution time for timing instrumentation
             reportTiming("gpu_kernel_execution", totalTime.count());

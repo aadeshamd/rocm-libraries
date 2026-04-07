@@ -3585,7 +3585,7 @@ void testing_matmul_with_bias(const Arguments& arg,
                     CHECK_HIPBLASLT_ERROR(
                         gemmVec[0].initialize(heuristicResult[sol].algo,
                                               tuningVec[heuristicTuningIndex[sol]],
-                                              *dWorkspace));
+                                              (unsigned char*)(*dWorkspace)));
                     CHECK_HIPBLASLT_ERROR(gemmVec[0].run(stream));
                 }
                 else
@@ -3764,7 +3764,8 @@ void testing_matmul_with_bias(const Arguments& arg,
                         CHECK_HIPBLASLT_ERROR(
                             gemmVec[b].initialize(heuristicResult[sol].algo,
                                                   tuningVec[heuristicTuningIndex[sol]],
-                                                  *dWorkspace));
+                                                  ((unsigned char*)(*dWorkspace)
+                                                   + b * workspace_size)));
                     }
                     if(arg.skip_slow_solution_ratio)
                         pre_gpu_time(

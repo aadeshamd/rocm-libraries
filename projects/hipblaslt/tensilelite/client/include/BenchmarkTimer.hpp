@@ -116,6 +116,7 @@ namespace TensileLite
             int m_numEnqueuesInSolution = 0;
             int m_numSyncsInBenchmark   = 0;
             int m_curNumEnqueuesPerSync = 0;
+            int m_numSyncsCompleted     = 0;
 
             clock::time_point m_startTime;
             clock::time_point m_endTime;

@@ -1016,6 +1016,7 @@ namespace TensileLite
             int64_t                         m_rotatingBuffer = 0;
             std::shared_ptr<RotatingMemory> m_rm;
             int32_t                         m_rotatingMode = 0;
+            std::vector<std::shared_ptr<void>> m_activeRotatingBuffers;
         };
 
         template <>

@@ -1080,6 +1080,8 @@ int main(int argc, const char* argv[])
                         maxRotatingBufferNum, problem, inputs, stream);
                     static_cast<void>(hipDeviceSynchronize());
                 }
+                std::shared_ptr<ProblemInputs> benchmarkInputs
+                    = inputArr.empty() ? inputs : inputArr[0];
                 bool resetInput = false;
                 while(solutionIterator->moreSolutionsInProblem())
                 {
@@ -1105,7 +1107,10 @@ int main(int argc, const char* argv[])
                                 {
                                     ScopedTimer timer("gpu_input_reset");
                                     auto inputs = dataInit->prepareGPUInputs(problem);
-                                    inputArr[0] = inputs;
+                                    inputArr = dataInit->prepareRotatingGPUOutput(
+                                        maxRotatingBufferNum, problem, inputs, stream);
+                                    static_cast<void>(hipDeviceSynchronize());
+                                    benchmarkInputs = inputArr[0];
                                 }
                                 resetInput = true;
 
@@ -1147,16 +1152,6 @@ int main(int argc, const char* argv[])
                                                                             stream,
                                                                             warmupStartEvents[0],
                                                                             warmupStopEvents[0]));
-                                    }
-
-                                    {
-                                        ScopedTimer timer("validate_warmups");
-                                        listeners.validateWarmups(
-                                            inputs, warmupStartEvents, warmupStopEvents);
-                                    }
-
-                                    {
-                                        ScopedTimer timer("warmup_runs");
                                         for(int i = 1; i < warmupInvocations; i++)
                                         {
                                             size_t kIdx = i % kernels.size();
@@ -1165,6 +1160,16 @@ int main(int argc, const char* argv[])
                                                                                 warmupStartEvents[i],
                                                                                 warmupStopEvents[i]));
                                         }
+                                    }
+
+                                    {
+                                        ScopedTimer timer("validate_warmups");
+                                        listeners.validateWarmups(
+                                            benchmarkInputs, warmupStartEvents, warmupStopEvents);
+                                    }
+
+                                    {
+                                        ScopedTimer timer("post_warmups");
                                         listeners.postWarmup(
                                             warmupStartEvents, warmupStopEvents, stream);
                                     }
@@ -1210,7 +1215,8 @@ int main(int argc, const char* argv[])
                                             }
 
                                             listeners.postEnqueues(startEvents, stopEvents, stream);
-                                            listeners.validateEnqueues(inputs, startEvents, stopEvents);
+                                            listeners.validateEnqueues(
+                                                benchmarkInputs, startEvents, stopEvents);
                                         }
 
                                     listeners.postSyncs();

@@ -1365,7 +1365,7 @@ namespace TensileLite
             bool enableGuardPage = (m_curBoundsCheck == BoundsCheckMode::GuardPageFront
                                     || m_curBoundsCheck == BoundsCheckMode::GuardPageBack);
             std::shared_ptr<void> tmpPtr;
-            if(m_rotatingBuffer > 0)
+            if(m_rotatingBuffer > 0 && m_rotatingMode == 0)
             {
                 m_rm->createRotatingMemory(m_rotatingMode, m_rotatingBuffer);
             }
@@ -1393,7 +1393,7 @@ namespace TensileLite
                             guardPage.push_back(std::shared_ptr<void>(guardPagePtr, hipFree));
                         }
                         std::shared_ptr<void> ptr;
-                        if(m_rotatingBuffer)
+                        if(m_rotatingBuffer && m_rotatingMode == 0)
                         {
                             auto mem = m_rm->getRotatingMemory();
                             if(tensorIdx <= ContractionProblemGemm::TENSOR::METADATA)
@@ -2476,7 +2476,7 @@ namespace TensileLite
                 = copyRotatingInput(newInputs.scaleAlphaVec,
                                     rotatingPtr,
                                     problem.tensors()[ContractionProblemGemm::TENSOR::SCALEALPHAVEC]
-                                        .totalAllocatedElements(),
+                                        .totalAllocatedBytes(),
                                     offset,
                                     stream);
             newInputs.metadata = (unsigned char*)copyRotatingInput(
@@ -2488,6 +2488,55 @@ namespace TensileLite
             return newInputs;
         }
 
+        std::vector<void*> createBenchLikeRotatingSlots(
+            const void*                         src,
+            size_t                              bytes,
+            int32_t                             slotCount,
+            hipStream_t                         stream,
+            std::vector<std::shared_ptr<void>>& ownedBuffers)
+        {
+            std::vector<void*> slots(slotCount, nullptr);
+            if(src == nullptr || bytes == 0 || slotCount <= 0)
+                return slots;
+
+            void* rawBuffer = nullptr;
+            HIP_CHECK_EXC(hipMalloc(&rawBuffer, bytes * slotCount));
+            auto ownedBuffer = std::shared_ptr<void>(rawBuffer, hipFree);
+            ownedBuffers.push_back(ownedBuffer);
+
+            auto* base = static_cast<uint8_t*>(rawBuffer);
+            for(int32_t slot = 0; slot < slotCount; slot++)
+            {
+                void* dst = base + slot * bytes;
+                slots[slot] = dst;
+                HIP_CHECK_EXC(hipMemcpyAsync(dst, src, bytes, hipMemcpyDeviceToDevice, stream));
+            }
+
+            return slots;
+        }
+
+        std::vector<void*> createBenchLikeWorkspaceSlots(
+            size_t                              bytes,
+            int32_t                             slotCount,
+            hipStream_t                         stream,
+            std::vector<std::shared_ptr<void>>& ownedBuffers)
+        {
+            std::vector<void*> slots(slotCount, nullptr);
+            if(bytes == 0 || slotCount <= 0)
+                return slots;
+
+            void* rawBuffer = nullptr;
+            HIP_CHECK_EXC(hipMalloc(&rawBuffer, bytes * slotCount));
+            auto ownedBuffer = std::shared_ptr<void>(rawBuffer, hipFree);
+            ownedBuffers.push_back(ownedBuffer);
+
+            auto* base = static_cast<uint8_t*>(rawBuffer);
+            for(int32_t slot = 0; slot < slotCount; slot++)
+                slots[slot] = base + slot * bytes;
+
+            return slots;
+        }
+
         std::vector<std::shared_ptr<ProblemInputs>>
             DataInitialization::prepareRotatingGPUOutput(int32_t maxRotatingBufferNum,
                                                          ContractionProblem const*      problem,
@@ -2495,6 +2544,7 @@ namespace TensileLite
                                                          hipStream_t                    stream)
         {
             using std::static_pointer_cast;
+            m_activeRotatingBuffers.clear();
             std::vector<std::shared_ptr<ProblemInputs>> inputArr;
             inputArr.push_back(inputs);
             if(m_rotatingBuffer == 0)
@@ -2504,9 +2554,13 @@ namespace TensileLite
             {
                 auto    castInputs   = static_pointer_cast<ContractionInputs>(inputs);
                 size_t  rotatingSize = getRotatingSize(*gemmProblem, *castInputs);
-                int32_t rotatingNum
-                    = min(maxRotatingBufferNum, ceil((float)m_rotatingBuffer / rotatingSize))
-                      - 1; // Minus the original buffer.
+                if(rotatingSize == 0)
+                    return inputArr;
+
+                int32_t totalSlotCount
+                    = min(maxRotatingBufferNum, ceil((float)m_rotatingBuffer / rotatingSize));
+                totalSlotCount = max(1, totalSlotCount);
+                int32_t rotatingNum = totalSlotCount - 1; // Minus the original buffer.
 
                 // <= 0 means don't rotating
                 rotatingNum = max(0, rotatingNum);
@@ -2536,24 +2590,97 @@ namespace TensileLite
                             std::make_shared<ContractionInputs>(newInputs)));
                     }
                 }
-                else
+                else if(m_rotatingMode == 1)
                 {
-                    auto    mem    = m_rm->getRotatingMemory();
-                    int64_t offset = 0;
-                    for(size_t i = 0; i < rotatingNum; i++)
+                    auto tensorBytes = [&](ContractionProblemGemm::TENSOR tensor) -> size_t {
+                        return gemmProblem->tensors()[tensor].totalAllocatedBytes();
+                    };
+
+                    auto slotA = createBenchLikeRotatingSlots(castInputs->a,
+                                                              tensorBytes(
+                                                                  ContractionProblemGemm::TENSOR::A),
+                                                              totalSlotCount,
+                                                              stream,
+                                                              m_activeRotatingBuffers);
+                    auto slotB = createBenchLikeRotatingSlots(castInputs->b,
+                                                              tensorBytes(
+                                                                  ContractionProblemGemm::TENSOR::B),
+                                                              totalSlotCount,
+                                                              stream,
+                                                              m_activeRotatingBuffers);
+                    auto slotC = createBenchLikeRotatingSlots(castInputs->c,
+                                                              tensorBytes(
+                                                                  ContractionProblemGemm::TENSOR::C),
+                                                              totalSlotCount,
+                                                              stream,
+                                                              m_activeRotatingBuffers);
+                    auto slotD = createBenchLikeRotatingSlots(castInputs->d,
+                                                              tensorBytes(
+                                                                  ContractionProblemGemm::TENSOR::D),
+                                                              totalSlotCount,
+                                                              stream,
+                                                              m_activeRotatingBuffers);
+                    auto slotE = createBenchLikeRotatingSlots(castInputs->e,
+                                                              tensorBytes(
+                                                                  ContractionProblemGemm::TENSOR::E),
+                                                              totalSlotCount,
+                                                              stream,
+                                                              m_activeRotatingBuffers);
+                    auto slotBias = createBenchLikeRotatingSlots(
+                        castInputs->bias,
+                        tensorBytes(ContractionProblemGemm::TENSOR::BIAS),
+                        totalSlotCount,
+                        stream,
+                        m_activeRotatingBuffers);
+                    auto slotScaleA = createBenchLikeRotatingSlots(
+                        castInputs->scaleA,
+                        tensorBytes(ContractionProblemGemm::TENSOR::SCALEA),
+                        totalSlotCount,
+                        stream,
+                        m_activeRotatingBuffers);
+                    auto slotScaleB = createBenchLikeRotatingSlots(
+                        castInputs->scaleB,
+                        tensorBytes(ContractionProblemGemm::TENSOR::SCALEB),
+                        totalSlotCount,
+                        stream,
+                        m_activeRotatingBuffers);
+                    auto slotScaleAlphaVec = createBenchLikeRotatingSlots(
+                        castInputs->scaleAlphaVec,
+                        tensorBytes(ContractionProblemGemm::TENSOR::SCALEALPHAVEC),
+                        totalSlotCount,
+                        stream,
+                        m_activeRotatingBuffers);
+                    auto slotMetadata = createBenchLikeRotatingSlots(
+                        castInputs->metadata,
+                        tensorBytes(ContractionProblemGemm::TENSOR::METADATA),
+                        totalSlotCount,
+                        stream,
+                        m_activeRotatingBuffers);
+                    auto slotWorkspace = createBenchLikeWorkspaceSlots(
+                        m_workspaceSize, totalSlotCount, stream, m_activeRotatingBuffers);
+
+                    inputArr.clear();
+                    for(int32_t slot = 0; slot < totalSlotCount; slot++)
                     {
                         ContractionInputs newInputs = *castInputs;
-                        newInputs.a                 = mem[i + 1][0].data.get();
-                        newInputs.b                 = mem[i + 1][1].data.get();
-                        newInputs.c                 = mem[i + 1][2].data.get();
-                        newInputs.d                 = mem[i + 1][3].data.get();
-                        newInputs.e                 = mem[i + 1][4].data.get();
-                        newInputs.bias              = mem[i + 1][5].data.get();
-                        newInputs.scaleAlphaVec     = mem[i + 1][6].data.get();
-                        newInputs.metadata          = (unsigned char*)mem[i + 1][7].data.get();
+                        newInputs.a             = slotA[slot];
+                        newInputs.b             = slotB[slot];
+                        newInputs.c             = slotC[slot];
+                        newInputs.d             = slotD[slot];
+                        newInputs.e             = slotE[slot];
+                        newInputs.bias          = slotBias[slot];
+                        newInputs.scaleA        = slotScaleA[slot];
+                        newInputs.scaleB        = slotScaleB[slot];
+                        newInputs.scaleAlphaVec = slotScaleAlphaVec[slot];
+                        newInputs.metadata      = (unsigned char*)slotMetadata[slot];
+                        newInputs.ws            = slotWorkspace[slot];
                         inputArr.push_back(static_pointer_cast<ProblemInputs>(
                             std::make_shared<ContractionInputs>(newInputs)));
                     }
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported rotating mode for ContractionProblemGemm.");
                 }
             }
             else if(auto groupedProblem
