@@ -190,6 +190,8 @@ void run_mma_layout_test()
 {
     EXPECT_TRUE(MmaOpTraits<MmaOp>::IsSupported) << "Unsupported MmaOp! Bad MmaOp in list!\n";
 
+    MmaOpTraits<MmaOp>::print();
+
     int device_count = 0;
     hipDevice_t device{};
     HIP_CHECK_ERROR(hipGetDevice(&device));
