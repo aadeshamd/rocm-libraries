@@ -7,7 +7,7 @@
 // (3) Error handling: verify missing buffers throw.
 // The mock chain pattern (MockKernelCompiler -> MockCompiledProgram -> MockRunnableKernel) with raw
 // pointer retention for EXPECT_CALL is reusable for your Plan tests.
-// Pick-and-choose which tests are useful for you sitation and adapt as needed.
+// Pick-and-choose which tests are useful for you situation and adapt as needed.
 
 #include <gtest/gtest.h>
 

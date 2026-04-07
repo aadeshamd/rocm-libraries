@@ -22,7 +22,7 @@ namespace example_provider
         if(status != hipSuccess)                                               \
         {                                                                      \
             throw hipdnn_plugin_sdk::HipdnnPluginException(                    \
-                HIPDNN_PLUGIN_STATUS_ALLOC_FAILED,                             \
+                HIPDNN_PLUGIN_STATUS_INTERNAL_ERROR,                           \
                 std::string(#call) + " failed: " + hipGetErrorString(status)); \
         }                                                                      \
     } while(0)
@@ -35,7 +35,7 @@ namespace example_provider
         if(status != HIPRTC_SUCCESS)                                              \
         {                                                                         \
             throw hipdnn_plugin_sdk::HipdnnPluginException(                       \
-                HIPDNN_PLUGIN_STATUS_ALLOC_FAILED,                                \
+                HIPDNN_PLUGIN_STATUS_INTERNAL_ERROR,                              \
                 std::string(#call) + " failed: " + hiprtcGetErrorString(status)); \
         }                                                                         \
     } while(0)

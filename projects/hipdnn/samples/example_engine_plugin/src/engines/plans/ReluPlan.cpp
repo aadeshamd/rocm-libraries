@@ -9,6 +9,8 @@
 #include "engines/ExampleProviderUtils.hpp"
 #include "hip/IKernelCompiler.hpp"
 
+#include <limits>
+
 namespace example_provider
 {
 
@@ -30,7 +32,7 @@ size_t ReluPlan::getWorkspaceSize(const ExampleProviderHandle& /*handle*/) const
     return 0;
 }
 
-void ReluPlan::execute(const ExampleProviderHandle& /*handle*/,
+void ReluPlan::execute(const ExampleProviderHandle& handle,
                        const hipdnnPluginDeviceBuffer_t* deviceBuffers,
                        uint32_t numDeviceBuffers,
                        void* /*workspace*/) const
@@ -41,6 +43,12 @@ void ReluPlan::execute(const ExampleProviderHandle& /*handle*/,
     auto* input = static_cast<const float*>(inputBuffer.ptr);
     auto* output = static_cast<float*>(outputBuffer.ptr);
 
+    if(_params.numElements > std::numeric_limits<unsigned int>::max())
+    {
+        throw hipdnn_plugin_sdk::HipdnnPluginException(
+            HIPDNN_PLUGIN_STATUS_INVALID_VALUE, "Number of elements exceeds unsigned int maximum");
+    }
+
     static constexpr unsigned int kBlockSize = 256;
     auto numElementsU = static_cast<unsigned int>(_params.numElements);
     unsigned int gridSize = (numElementsU + kBlockSize - 1) / kBlockSize;
@@ -49,7 +57,7 @@ void ReluPlan::execute(const ExampleProviderHandle& /*handle*/,
     _kernel->setGridSize(gridSize, 1, 1);
 
     auto negSlope = static_cast<float>(_params.negativeSlope);
-    _kernel->launch(nullptr, input, output, numElementsU, negSlope);
+    _kernel->launch(handle.getStream(), input, output, numElementsU, negSlope);
 }
 
 } // namespace example_provider

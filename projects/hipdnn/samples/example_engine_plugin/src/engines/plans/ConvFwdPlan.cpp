@@ -9,6 +9,8 @@
 #include "engines/ExampleProviderUtils.hpp"
 #include "hip/IKernelCompiler.hpp"
 
+#include <limits>
+
 namespace example_provider
 {
 
@@ -30,7 +32,7 @@ size_t ConvFwdPlan::getWorkspaceSize(const ExampleProviderHandle& /*handle*/) co
     return 0;
 }
 
-void ConvFwdPlan::execute(const ExampleProviderHandle& /*handle*/,
+void ConvFwdPlan::execute(const ExampleProviderHandle& handle,
                           const hipdnnPluginDeviceBuffer_t* deviceBuffers,
                           uint32_t numDeviceBuffers,
                           void* /*workspace*/) const
@@ -43,9 +45,15 @@ void ConvFwdPlan::execute(const ExampleProviderHandle& /*handle*/,
     auto* weight = static_cast<const float*>(weightBuffer.ptr);
     auto* output = static_cast<float*>(outputBuffer.ptr);
 
-    // Total output elements: N * K * outH * outW
-    auto totalOutputElements
-        = static_cast<unsigned int>(_params.n * _params.k * _params.outH * _params.outW);
+    int64_t totalOutputElementsI64 = _params.n * _params.k * _params.outH * _params.outW;
+    if(totalOutputElementsI64 > std::numeric_limits<unsigned int>::max())
+    {
+        throw hipdnn_plugin_sdk::HipdnnPluginException(
+            HIPDNN_PLUGIN_STATUS_INVALID_VALUE,
+            "Total output elements exceeds unsigned int maximum");
+    }
+
+    auto totalOutputElements = static_cast<unsigned int>(totalOutputElementsI64);
     auto blockSizeU = static_cast<unsigned int>(_params.blockSize);
     unsigned int gridSize = (totalOutputElements + blockSizeU - 1) / blockSizeU;
 
@@ -66,7 +74,7 @@ void ConvFwdPlan::execute(const ExampleProviderHandle& /*handle*/,
     auto strideH = static_cast<int>(_params.strideH);
     auto strideW = static_cast<int>(_params.strideW);
 
-    _kernel->launch(nullptr,
+    _kernel->launch(handle.getStream(),
                     input,
                     weight,
                     output,

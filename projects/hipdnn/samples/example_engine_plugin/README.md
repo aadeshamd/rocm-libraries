@@ -1,8 +1,7 @@
 # hipDNN Example Plugin
 
 A self-contained example project that demonstrates how to build a hipDNN engine
-plugin from scratch. It is designed developers who want to extend hipDNN with
-custom GPU-accelerated engines.
+plugin to extend hipDNN with custom GPU-accelerated engines.
 
 The example implements two GPU operations compiled at runtime via HIPRTC (HIP
 Runtime Compilation):
@@ -691,9 +690,6 @@ simplicity. To build a production plugin:
 
 - **Support multi-node graphs**: Extend `isApplicable()` to match fused
   operation patterns (e.g., Conv + BiasAdd + ReLU).
-
-- **Available Windows support**: The CMake project uses generator expressions for
-  cross-platform compiler flags.
 
 ## Further Reading
 

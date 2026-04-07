@@ -3,8 +3,6 @@
 
 #include "ReluPlanBuilder.hpp"
 
-#include <set>
-
 #include <hipdnn_data_sdk/data_objects/graph_generated.h>
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>

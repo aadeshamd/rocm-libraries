@@ -33,8 +33,8 @@ public:
 
     HipCompiledProgram(const HipCompiledProgram&) = delete;
     HipCompiledProgram& operator=(const HipCompiledProgram&) = delete;
-    HipCompiledProgram(HipCompiledProgram&&) = default;
-    HipCompiledProgram& operator=(HipCompiledProgram&&) = default;
+    HipCompiledProgram(HipCompiledProgram&&) = delete;
+    HipCompiledProgram& operator=(HipCompiledProgram&&) = delete;
 
     /// Get a runnable kernel from the loaded module (ICompiledProgram interface).
     /// @param kernelFunctionName The name of the kernel function (must match extern "C" name)

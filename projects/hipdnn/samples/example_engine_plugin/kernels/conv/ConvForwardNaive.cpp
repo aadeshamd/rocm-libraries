@@ -25,7 +25,7 @@ extern "C" __global__ void conv_forward_naive_kernel(const float* input,
                                                      int strideW)
 {
     IndexType idx = blockIdx.x * blockDim.x + threadIdx.x;
-    IndexType totalOutputElements = N * K * outH * outW;
+    IndexType totalOutputElements = static_cast<IndexType>(N) * K * outH * outW;
 
     if(idx >= totalOutputElements)
     {
