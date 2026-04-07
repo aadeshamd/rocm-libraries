@@ -315,31 +315,31 @@ namespace InlineExpressionsTest
             int idxA         = graph.control.addElement(nodeA);
             graph.mapper.connect(idxA, coordA, NaryArgument::DEST);
 
-            // b = 2 * a
+            // b = a + 1
             int    coordB = graph.coordinates.addElement(Linear{});
             Assign nodeB;
-            auto   doubleLiteral = Expression::literal(2);
-            auto   doubleVariable
+            auto   incLiteral = Expression::literal(1);
+            auto   incVariable
                 = std::make_shared<Expression::Expression>(Expression::DataFlowTag{coordA});
             nodeB.expression = std::make_shared<Expression::Expression>(
-                Expression::Multiply{doubleLiteral, doubleVariable});
+                Expression::Add{incVariable, incLiteral});
             int idxB = graph.control.addElement(nodeB);
             graph.mapper.connect(idxB, coordB, NaryArgument::DEST);
 
             // a = 2
             Assign nodeA2;
             nodeA2.expression = Expression::literal(2);
-            int idxA2         = graph.control.addElement(nodeA);
+            int idxA2         = graph.control.addElement(nodeA2);
             graph.mapper.connect(idxA2, coordA, NaryArgument::DEST);
 
-            // c = a + 1
+            // c = 2 * a
             int    coordC = graph.coordinates.addElement(Linear{});
             Assign nodeC;
-            auto   incLiteral = Expression::literal(1);
-            auto   incVariable
+            auto   doubleLiteral = Expression::literal(2);
+            auto   doubleVariable
                 = std::make_shared<Expression::Expression>(Expression::DataFlowTag{coordA});
             nodeC.expression = std::make_shared<Expression::Expression>(
-                Expression::Add{incVariable, incLiteral});
+                Expression::Multiply{doubleLiteral, doubleVariable});
             int idxC = graph.control.addElement(nodeC);
             graph.mapper.connect(idxC, coordC, NaryArgument::DEST);
 
@@ -358,36 +358,34 @@ namespace InlineExpressionsTest
             CHECK(graph.control.getOutputNodeIndices<Sequence>(idxA2).to<std::vector>().back()
                   == idxC);
 
-            std::cout << std::string(graph.toDOT()) << std::endl;
-
             // Apply InlineExpressions
             graph = transform<InlineExpressions>(graph);
 
-            // Expect expression b = 2 * 1
-            auto node         = graph.control.getNode<Assign>(idxB);
+            // Expect expression b = 1 + 1
+            auto node    = graph.control.getNode<Assign>(idxB);
+            auto addExpr = std::get<Expression::Add>(*node.expression);
+            CHECK(std::get<int>(Expression::evaluate(*addExpr.lhs)) == 1);
+            CHECK(std::get<int>(Expression::evaluate(*addExpr.rhs)) == 1);
+
+            // Expect expression c = 2 * 2
+            node              = graph.control.getNode<Assign>(idxC);
             auto multiplyExpr = std::get<Expression::Multiply>(*node.expression);
             CHECK(std::get<int>(Expression::evaluate(*multiplyExpr.lhs)) == 2);
-            CHECK(std::get<int>(Expression::evaluate(*multiplyExpr.rhs)) == 1);
-
-            // Expect expression c = 2 + 1
-            node         = graph.control.getNode<Assign>(idxC);
-            auto addExpr = std::get<Expression::Add>(*node.expression);
-            CHECK(std::get<int>(Expression::evaluate(*addExpr.lhs)) == 2);
-            CHECK(std::get<int>(Expression::evaluate(*addExpr.rhs)) == 1);
+            CHECK(std::get<int>(Expression::evaluate(*multiplyExpr.rhs)) == 2);
 
             // Make sure everything is still connected correctly
             // Child of kernel node should be a NOP now
             int maybeNOPIdx
                 = graph.control.getOutputNodeIndices<Body>(kernel).to<std::vector>().back();
             CHECK(graph.control.get<NOP>(maybeNOPIdx).has_value());
-            // Child of NOP should be node B - inlined multiply expression
+            // Child of NOP should be node B - inlined add expression
             CHECK(graph.control.getOutputNodeIndices<Sequence>(maybeNOPIdx).to<std::vector>().back()
                   == idxB);
             // Child of node B should be another NOP
             maybeNOPIdx
                 = graph.control.getOutputNodeIndices<Sequence>(idxB).to<std::vector>().back();
             CHECK(graph.control.get<NOP>(maybeNOPIdx).has_value());
-            // Child of second NOP should be node C - inlined add expression
+            // Child of second NOP should be node C - inlined multiply expression
             CHECK(graph.control.getOutputNodeIndices<Sequence>(maybeNOPIdx).to<std::vector>().back()
                   == idxC);
 

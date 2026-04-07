@@ -194,7 +194,8 @@ namespace rocRoller::KernelGraph
                     if(possibleCandidate->has_value())
                     {
                         // If this read would satisfy that possible candidate, add it
-                        if(possibleCandidate->value().checkNewRead(parent, isAssignNode))
+                        if(possibleCandidate->value().checkNewRead(
+                               kgraph, parent, record.control, isAssignNode))
                         {
                             // Now that we've written to and read from this coordinate,
                             // this will be a candidate as long as we don't have any more reads to it
@@ -215,7 +216,8 @@ namespace rocRoller::KernelGraph
                     if(possibleCandidate->has_value())
                     {
                         // If this read would satisfy that possible candidate, add it
-                        if(possibleCandidate->value().checkNewRead(parent, isAssignNode))
+                        if(possibleCandidate->value().checkNewRead(
+                               kgraph, parent, record.control, isAssignNode))
                         {
                             // Now that we've written to and read from this coordinate,
                             // since we know we're about to write to it again, this is a candidate!

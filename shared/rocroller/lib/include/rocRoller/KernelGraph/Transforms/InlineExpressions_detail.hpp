@@ -102,12 +102,18 @@ namespace rocRoller
                  * @brief Check if a new read will satisfy the conditions for an inlining candidate
                  * @return True if a new read to this coordinate will satisfy the conditions for a candidate, and false otherwise
                  */
-                bool checkNewRead(int readParent, bool isAssignNode) const
+                bool checkNewRead(KernelGraph const& kgraph,
+                                  int                readParent,
+                                  int                readingNode,
+                                  bool               isAssignNode) const
                 {
                     // We already know that we've written to this coordinate, so if we haven't yet read from it,
-                    // and this new read comes from an assign node under the same body parent as the write, this will satisfy the conditions
-                    return !m_readingNode.has_value() && m_writeParent == readParent
-                           && isAssignNode;
+                    // and this new read comes from an assign node under the same body parent as the write,
+                    // and the read comes after the write, this will satisfy the conditions
+                    return !m_readingNode.has_value() && m_writeParent == readParent && isAssignNode
+                           && kgraph.control.compareNodes(
+                                  rocRoller::UpdateCache, m_writingNode, readingNode)
+                                  == ControlGraph::NodeOrdering::LeftFirst;
                 }
 
                 /*
