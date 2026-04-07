@@ -32,7 +32,8 @@ namespace rocRollerTests
     {
         Catch::Tag tag(tagName);
 
-        auto testName = Catch::getResultCapture().getCurrentTestName();
+        auto testName = "TT";
+        //auto testName = Catch::getResultCapture().getCurrentTestName();
 
         auto infos = getSortedTestInfos();
 

@@ -399,13 +399,33 @@ namespace rocRoller
                 return rv;
             }
 
-            bool TagExtent::fitsWithin(KernelGraph const& kgraph, TagExtent const& outer)
+            bool TagExtent::fitsWithin(KernelGraph const& kgraph, TagExtent const& outer) const
             {
                 for(auto const& gap : outer.gaps)
                     if(extent.isWithin(kgraph, gap))
                         return true;
 
                 return false;
+            }
+
+            std::map<int, int> computeMatchCounts(KernelGraph const&          kgraph,
+                                                  std::list<TagExtent> const& extents)
+            {
+                std::map<int, int> counts;
+                for(auto const& inner : extents)
+                {
+                    int count = 0;
+                    for(auto const& outer : extents)
+                    {
+                        if(&inner != &outer && !outer.gaps.empty()
+                           && inner.fitsWithin(kgraph, outer))
+                        {
+                            count++;
+                        }
+                    }
+                    counts[inner.baseTag] = count;
+                }
+                return counts;
             }
 
             std::map<TagExtent::CategoryKey, std::list<TagExtent>>
@@ -460,43 +480,100 @@ namespace rocRoller
             std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
                                                              std::list<TagExtent> extents)
             {
-                std::map<int, int> aliases;
-
-                bool foundAny = false;
-                do
+                // --- Pass 1: original order (current behavior) ---
+                auto               originalExtents = extents;
+                std::map<int, int> originalAliases;
                 {
-                    auto e   = extents.size();
-                    foundAny = false;
-                    for(auto outer = extents.begin(); outer != extents.end(); outer++)
+                    bool foundAny = false;
+                    do
                     {
-                        for(auto inner = extents.begin(); inner != extents.end();)
+                        foundAny = false;
+                        for(auto outer = originalExtents.begin(); outer != originalExtents.end();
+                            outer++)
                         {
-                            if(outer != inner && inner->fitsWithin(kgraph, *outer))
+                            for(auto inner = originalExtents.begin();
+                                inner != originalExtents.end();)
                             {
-                                foundAny = true;
-                                AssertFatal(!aliases.contains(inner->baseTag));
-                                aliases[inner->baseTag] = outer->baseTag;
-                                Log::debug("{} -> {}", inner->baseTag, outer->baseTag);
+                                if(outer != inner && inner->fitsWithin(kgraph, *outer))
+                                {
+                                    foundAny = true;
+                                    AssertFatal(!originalAliases.contains(inner->baseTag));
+                                    originalAliases[inner->baseTag] = outer->baseTag;
 
-                                inner->validate(kgraph);
+                                    inner->validate(kgraph);
+                                    outer->merge(kgraph, *inner);
+                                    outer->validate(kgraph);
 
-                                outer->merge(kgraph, *inner);
-
-                                outer->validate(kgraph);
-
-                                Log::debug("merged {}", outer->toString());
-                                inner = extents.erase(inner);
-                            }
-                            else
-                            {
-                                inner++;
+                                    inner = originalExtents.erase(inner);
+                                }
+                                else
+                                {
+                                    inner++;
+                                }
                             }
                         }
-                    }
-                    Log::debug("{} aliases so far.", aliases.size());
-                } while(foundAny);
+                    } while(foundAny);
+                }
+                auto sortedExtents = extents;
+                auto matchCounts   = computeMatchCounts(kgraph, sortedExtents);
 
-                for(auto ext : extents)
+                sortedExtents.sort([&](TagExtent const& a, TagExtent const& b) {
+                    int mcA = matchCounts[a.baseTag];
+                    int mcB = matchCounts[b.baseTag];
+                    if(mcA != mcB)
+                        return mcA < mcB;
+
+                    int gA = static_cast<int>(a.gaps.size());
+                    int gB = static_cast<int>(b.gaps.size());
+                    if(gA != gB)
+                        return gA < gB;
+
+                    return a.baseTag < b.baseTag;
+                });
+
+                std::map<int, int> sortedAliases;
+                {
+                    bool foundAny = false;
+                    do
+                    {
+                        foundAny = false;
+                        for(auto outer = sortedExtents.begin(); outer != sortedExtents.end();
+                            outer++)
+                        {
+                            for(auto inner = sortedExtents.begin(); inner != sortedExtents.end();)
+                            {
+                                if(outer != inner && inner->fitsWithin(kgraph, *outer))
+                                {
+                                    foundAny = true;
+                                    AssertFatal(!sortedAliases.contains(inner->baseTag));
+                                    sortedAliases[inner->baseTag] = outer->baseTag;
+
+                                    inner->validate(kgraph);
+                                    outer->merge(kgraph, *inner);
+                                    outer->validate(kgraph);
+
+                                    inner = sortedExtents.erase(inner);
+                                }
+                                else
+                                {
+                                    inner++;
+                                }
+                            }
+                        }
+                    } while(foundAny);
+                }
+                auto& aliases   = (sortedAliases.size() >= originalAliases.size()) ? sortedAliases
+                                                                                   : originalAliases;
+                auto& remaining = (sortedAliases.size() >= originalAliases.size())
+                                      ? sortedExtents
+                                      : originalExtents;
+
+                Log::debug("Alias pass: original={}, sorted={}, using={}",
+                           originalAliases.size(),
+                           sortedAliases.size(),
+                           aliases.size());
+
+                for(auto ext : remaining)
                 {
                     Log::debug("{}\n{}", ext.toString(), ext.orderInfo(kgraph));
                     ext.validate(kgraph);

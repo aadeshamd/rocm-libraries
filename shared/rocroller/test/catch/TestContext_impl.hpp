@@ -48,8 +48,8 @@ TestContext TestContext::ForDefaultTarget(rocRoller::KernelOptions const& kernel
 template <typename... Params>
 std::string TestContext::KernelName(Params const&... params)
 {
-    auto name = rocRoller::concatenate_join(
-        " ", Catch::getResultCapture().getCurrentTestName(), params...);
+    auto name = rocRoller::concatenate_join(" ", "TT", params...);
+    //" ", Catch::getResultCapture().getCurrentTestName(), params...);
 
     return EscapeKernelName(name);
 }
