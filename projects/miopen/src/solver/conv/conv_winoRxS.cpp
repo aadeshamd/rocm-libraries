@@ -269,6 +269,7 @@ inline bool IsShaderConstraintsMetV30(const ProblemDescription& problem,
                                       const int N)
 {
     // clang-format off
+    MIOPEN_LOG_I("N=" << N << " C=" << C << " H=" << H << " W=" << W << " NHW=" << N * H * W);
     // Check implementation limits.
     return static_cast<uint64_t>(N)              < (uint64_t{1} << 16)
         && static_cast<uint64_t>(C)              < (uint64_t{1} << 16)
