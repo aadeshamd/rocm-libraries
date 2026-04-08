@@ -35,18 +35,18 @@ TEST_CASE("TensorDescriptor basic functionality", "[utils][tensor-descriptor]")
 
 TEST_CASE("TensorDescriptor works with overlapping strides", "[utils][tensor-descriptor]")
 {
-    TensorDescriptor t(DataType::Float, {4, 6, 3}, {1, 4, 1});
+    TensorDescriptor t(DataType::Float, {4, 3, 6}, {1, 1, 4});
 
     CHECK(t.dimensions() == 3);
-    CHECK(t.sizes() == std::vector<size_t>({4, 6, 3}));
-    CHECK(t.strides() == std::vector<size_t>({1, 4, 1}));
+    CHECK(t.sizes() == std::vector<size_t>({4, 3, 6}));
+    CHECK(t.strides() == std::vector<size_t>({1, 1, 4}));
 
     CHECK(t.dimensionPadding(0) == 0);
-    CHECK(t.dimensionPadding(1) == 0);
+    CHECK(t.dimensionPadding(1) == -3);
 
-    CHECK(t.totalLogicalElements() == 4 * 6 * 3);
-    CHECK(t.totalAllocatedElements() == 4 * 6 + (3 - 1));
-    CHECK(t.totalAllocatedBytes() == (4 * 6 + (3 - 1)) * 4);
+    CHECK(t.totalLogicalElements() == 4 * 3 * 6);
+    CHECK(t.totalAllocatedElements() == 4 + (3 - 1) + (6 - 1) * 4);
+    CHECK(t.totalAllocatedBytes() == (4 + (3 - 1) + (6 - 1) * 4) * 4);
 }
 
 TEST_CASE("TensorDescriptor works with padding", "[utils][tensor-descriptor]")
@@ -87,19 +87,17 @@ TEST_CASE("TensorDescriptor works with simplified padding", "[utils][tensor-desc
 
 TEST_CASE("TensorDescriptor works with zero strides", "[utils][tensor-descriptor]")
 {
-    TensorDescriptor t(DataType::Float,
-                       {4, 5, 6},
-                       {TensorDescriptor::UseDefaultStride, TensorDescriptor::UseDefaultStride, 0});
+    TensorDescriptor t(DataType::Float, {6, 4, 5}, {0, 1, 4});
 
     CHECK(t.dimensions() == 3);
-    CHECK(t.sizes() == std::vector<size_t>({4, 5, 6}));
-    CHECK(t.strides() == std::vector<size_t>({1, 4, 0})); // default 1,4
+    CHECK(t.sizes() == std::vector<size_t>({6, 4, 5}));
+    CHECK(t.strides() == std::vector<size_t>({0, 1, 4}));
 
-    CHECK(t.dimensionPadding(0) == 0);
-    CHECK(t.dimensionPadding(1) == 0);
-    CHECK(t.dimensionPadding(2) == -20);
+    CHECK(t.dimensionPadding(0) == -1);
+    CHECK(t.dimensionPadding(1) == 1);
+    CHECK(t.dimensionPadding(2) == 0);
 
-    CHECK(t.totalLogicalElements() == 4 * 5 * 6);
+    CHECK(t.totalLogicalElements() == 6 * 4 * 5);
     CHECK(t.totalAllocatedElements() == 4 * 5);
     CHECK(t.totalAllocatedBytes() == 4 * 5 * 4);
 }

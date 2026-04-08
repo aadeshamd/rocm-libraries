@@ -32,6 +32,13 @@ namespace rocRoller
             {
                 m_strides.resize(dimensions, 1);
             }
+
+            for(size_t i = 1; i < m_strides.size(); i++)
+            {
+                AssertFatal(m_strides[i - 1] <= m_strides[i],
+                            "BlockScale strides must be in fastest-to-slowest order.",
+                            ShowValue(m_strides));
+            }
         }
 
         std::unordered_set<OperationTag> BlockScale::getInputs() const

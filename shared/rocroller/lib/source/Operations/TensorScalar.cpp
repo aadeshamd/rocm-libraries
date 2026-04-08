@@ -65,6 +65,25 @@ namespace rocRoller
 
             m_literalSizes   = literalSizes;
             m_literalStrides = literalStrides;
+
+            // Enforce fastest-to-slowest ordering: each non-zero stride must be
+            // <= the next non-zero stride (skipping zero/runtime entries).
+            size_t lastNonZero = 0;
+            bool   foundFirst  = false;
+            for(size_t i = 0; i < m_literalStrides.size(); i++)
+            {
+                if(m_literalStrides[i] > 0)
+                {
+                    if(foundFirst)
+                    {
+                        AssertFatal(lastNonZero <= m_literalStrides[i],
+                                    "Tensor literal strides must be in fastest-to-slowest order.",
+                                    ShowValue(m_literalStrides));
+                    }
+                    lastNonZero = m_literalStrides[i];
+                    foundFirst  = true;
+                }
+            }
         }
 
         void Tensor::allocateArguments()
