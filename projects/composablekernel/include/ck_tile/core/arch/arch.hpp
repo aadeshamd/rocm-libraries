@@ -6,6 +6,7 @@
 // Address Space for AMDGCN
 // https://llvm.org/docs/AMDGPUUsage.html#address-space
 
+#include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
