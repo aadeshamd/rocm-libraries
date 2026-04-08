@@ -238,19 +238,13 @@ struct amdgcn_target
         static constexpr bool host =
             (TargetId == amdgcn_target_id::HOST && FamilyId == amdgcn_target_family_id::HOST &&
              ArchId == amdgcn_target_arch_id::HOST);
-#if defined(__HIP_DEVICE_COMPILE__)
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-#else
+#if !defined(__HIP_DEVICE_COMPILE__)
         using std::printf;
 #endif
-            printf("CompilerTarget TARGET_ID        : %s\n", to_string(TargetId));
-            printf("               FAMILY_ID        : %s\n", to_string(FamilyId));
-            printf("               ARCH_ID          : %s\n", to_string(ArchId));
-            printf("               WAVE_SIZE_ID     : %s\n", to_string<host>(WaveSizeId));
-#if defined(__HIP_DEVICE_COMPILE__)
-        }
-#endif
+        printf("CompilerTarget TARGET_ID        : %s\n", to_string(TargetId));
+        printf("               FAMILY_ID        : %s\n", to_string(FamilyId));
+        printf("               ARCH_ID          : %s\n", to_string(ArchId));
+        printf("               WAVE_SIZE_ID     : %s\n", to_string<host>(WaveSizeId));
     }
 };
 

@@ -95,17 +95,11 @@ struct DefaultWmmaCtrlFlags
 
     CK_TILE_HOST_DEVICE static void print()
     {
-#if defined(__HIP_DEVICE_COMPILE__)
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-#else
+#if !defined(__HIP_DEVICE_COMPILE__)
         using std::printf;
 #endif
-            printf("CtrlFlags      Clamp            : %d\n", Clamp);
-            printf("               AccumBits        : %s\n", to_string(AccumBits));
-#if defined(__HIP_DEVICE_COMPILE__)
-        }
-#endif
+        printf("CtrlFlags      Clamp            : %d\n", Clamp);
+        printf("               AccumBits        : %s\n", to_string(AccumBits));
     }
 };
 

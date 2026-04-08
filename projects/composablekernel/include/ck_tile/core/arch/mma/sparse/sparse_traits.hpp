@@ -93,16 +93,10 @@ struct DefaultSparseMfmaCtrlFlags
 
     CK_TILE_HOST_DEVICE static void print()
     {
-#if defined(__HIP_DEVICE_COMPILE__)
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-#else
+#if !defined(__HIP_DEVICE_COMPILE__)
         using std::printf;
 #endif
-            printf("CtrlFlags      CompressionIndex : %s\n", to_string(CompressionIndex));
-#if defined(__HIP_DEVICE_COMPILE__)
-        }
-#endif
+        printf("CtrlFlags      CompressionIndex : %s\n", to_string(CompressionIndex));
     }
 };
 

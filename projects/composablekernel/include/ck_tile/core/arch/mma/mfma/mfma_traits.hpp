@@ -69,18 +69,12 @@ struct DefaultMfmaCtrlFlags
 
     CK_TILE_HOST_DEVICE static void print()
     {
-#if defined(__HIP_DEVICE_COMPILE__)
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-#else
+#if !defined(__HIP_DEVICE_COMPILE__)
         using std::printf;
 #endif
-            printf("CtrlFlags      Cbsz             : %u\n", Cbsz);
-            printf("               Abid             : %u\n", Abid);
-            printf("               Blgp             : %u\n", Blgp);
-#if defined(__HIP_DEVICE_COMPILE__)
-        }
-#endif
+        printf("CtrlFlags      Cbsz             : %u\n", Cbsz);
+        printf("               Abid             : %u\n", Abid);
+        printf("               Blgp             : %u\n", Blgp);
     }
 };
 

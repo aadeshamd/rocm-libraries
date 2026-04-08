@@ -213,30 +213,24 @@ struct amdgcn_mma_base
 
     CK_TILE_HOST_DEVICE static void print()
     {
-#if defined(__HIP_DEVICE_COMPILE__)
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-#else
+#if !defined(__HIP_DEVICE_COMPILE__)
         using std::printf;
 #endif
-            printf("DataTypes      A / B / C        : %s / %s / %s\n",
-                   DataTypeTraits<ADataType_>::name,
-                   DataTypeTraits<BDataType_>::name,
-                   DataTypeTraits<CDataType_>::name);
-            printf("Shape          M / N / K        : %u / %u / %u\n", FragM, FragN, FragK);
-            printf("               WaveSize         : %u\n", WaveSize_);
-            printf("AccessPattern  kABKPerLane      : %d\n", kABKPerLane_);
-            printf("               kAKNumAccess     : %d\n", kAKNumAccess_);
-            printf("               kARepeat         : %d\n", kARepeat_);
-            printf("               kBKNumAccess     : %d\n", kBKNumAccess_);
-            printf("               kBRepeat         : %d\n", kBRepeat_);
-            printf("               kCMPerLane       : %d\n", kCMPerLane_);
-            printf("               kCMNumAccess     : %d\n", kCMNumAccess_);
-            printf("Op             Type             : %s\n", OpTypeTraits<OpType_>::name);
-            printf("               Family           : %s\n", to_string(OpFamily_));
-#if defined(__HIP_DEVICE_COMPILE__)
-        }
-#endif
+        printf("DataTypes      A / B / C        : %s / %s / %s\n",
+               DataTypeTraits<ADataType_>::name,
+               DataTypeTraits<BDataType_>::name,
+               DataTypeTraits<CDataType_>::name);
+        printf("Shape          M / N / K        : %u / %u / %u\n", FragM, FragN, FragK);
+        printf("               WaveSize         : %u\n", WaveSize_);
+        printf("AccessPattern  kABKPerLane      : %d\n", kABKPerLane_);
+        printf("               kAKNumAccess     : %d\n", kAKNumAccess_);
+        printf("               kARepeat         : %d\n", kARepeat_);
+        printf("               kBKNumAccess     : %d\n", kBKNumAccess_);
+        printf("               kBRepeat         : %d\n", kBRepeat_);
+        printf("               kCMPerLane       : %d\n", kCMPerLane_);
+        printf("               kCMNumAccess     : %d\n", kCMNumAccess_);
+        printf("Op             Type             : %s\n", OpTypeTraits<OpType_>::name);
+        printf("               Family           : %s\n", to_string(OpFamily_));
     }
 };
 
