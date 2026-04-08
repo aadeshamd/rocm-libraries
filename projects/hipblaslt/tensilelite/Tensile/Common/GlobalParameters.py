@@ -449,6 +449,8 @@ defaultBenchmarkCommonParameters = [
     {"WaveSplitK": [ False ]},
     {"MbskPrefetchMethod": [-1]},
     {"UseCustomMainLoopSchedule": [-1]},
+    {"GenerateROCasm": [False]},
+    {"UseROCasmMainLoop": [""]},
     {"SpaceFillingAlgo": [[]]},
     {"SFCWGM": [[[1,1],[1,1]]]},
     {"AdaptiveGemm": [0]},

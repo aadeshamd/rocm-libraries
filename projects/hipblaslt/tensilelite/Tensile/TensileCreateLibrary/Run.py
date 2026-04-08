@@ -25,6 +25,7 @@
 import rocisa
 
 import functools
+import importlib.util
 import glob
 import itertools
 import os
@@ -92,6 +93,8 @@ class KernelCodeGenResult(NamedTuple):
     cuoccupancy: int
     pgr: int
     mathclk: int
+    generateROCasm: bool
+    useROCasmMainLoop: str
 
 class KernelMinResult(NamedTuple):
     err: int
@@ -122,7 +125,9 @@ def processKernelSource(kernelWriterAssembly, data, outOptions, splitGSU, kernel
     return KernelCodeGenResult(
         err, src, header, asmFilename, objFilename, tuple(kernel["ISA"]), \
         kernel["WavefrontSize"], kernel["CUOccupancy"], \
-        pgr, kernel["MathClocksUnrolledLoop"]
+        pgr, kernel["MathClocksUnrolledLoop"], \
+        kernel["GenerateROCasm"], \
+        kernel["UseROCasmMainLoop"]
     )
 
 def _checkInvalidSolutionsAndKernels(errorTolerant, result, kernel):
@@ -256,6 +261,93 @@ def passPostKernelInfoToLibrary(results, kernels, masterLibraries, splitGSU: boo
                         print(f"{'='*80}\n")
                         raise
 
+def _generateROCasmMainloop(src: str, mainloopPath: Path) -> str:
+    """Extract the label_LoopBeginL main loop, write a Python mainloop file, and splice back.
+
+    Searches for label_LoopBeginL: and label_LoopEndL: in the source text.
+    Writes a Python file at mainloopPath with a get_main_loop() function returning the
+    extracted text. Then imports that module, calls get_main_loop(), and splices the result
+    back into the source. The returned source should be identical to the input.
+
+    If either label is not found, returns src unchanged (graceful skip).
+    """
+    begin_marker = "label_LoopBeginL:"
+    end_marker = "label_LoopEndL:"
+
+    begin_idx = src.find(begin_marker)
+    end_idx = src.find(end_marker)
+
+    if begin_idx == -1 or end_idx == -1:
+        return src
+
+    # Find the start of the line containing label_LoopBeginL:
+    line_start = src.rfind("\n", 0, begin_idx)
+    line_start = line_start + 1 if line_start != -1 else 0
+
+    # Find the start of the line containing label_LoopEndL:
+    end_line_start = src.rfind("\n", 0, end_idx)
+    end_line_start = end_line_start + 1 if end_line_start != -1 else 0
+
+    prefix = src[:line_start]
+    main_loop_text = src[line_start:end_line_start]
+    suffix = src[end_line_start:]
+
+    # Write the mainloop Python file using repr() for safe string escaping
+    with open(mainloopPath, "w", encoding="utf-8") as f:
+        f.write("def get_main_loop():\n")
+        f.write(f"    return {repr(main_loop_text)}\n")
+
+    # Import and call get_main_loop() to prove the round-trip
+    spec = importlib.util.spec_from_file_location("_rocasm_mainloop", str(mainloopPath))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    spliced_main_loop = mod.get_main_loop()
+
+    return prefix + spliced_main_loop + suffix
+
+def _useROCasmMainloop(src: str, mainloopPath: str) -> str:
+    """Replace the main loop in src with the output of a user-supplied rocasm module.
+
+    Imports the module at mainloopPath, calls its get_main_loop() function, and
+    splices the returned text into src between label_LoopBeginL: and label_LoopEndL:.
+
+    If either label is not found in src, returns src unchanged.
+    """
+    begin_marker = "label_LoopBeginL:"
+    end_marker = "label_LoopEndL:"
+
+    begin_idx = src.find(begin_marker)
+    end_idx = src.find(end_marker)
+
+    if begin_idx == -1 or end_idx == -1:
+        return src
+
+    # Find the start of the line containing label_LoopBeginL:
+    line_start = src.rfind("\n", 0, begin_idx)
+    line_start = line_start + 1 if line_start != -1 else 0
+
+    # Find the start of the line containing label_LoopEndL:
+    end_line_start = src.rfind("\n", 0, end_idx)
+    end_line_start = end_line_start + 1 if end_line_start != -1 else 0
+
+    prefix = src[:line_start]
+    suffix = src[end_line_start:]
+
+    resolved = Path(mainloopPath).resolve()
+    if not resolved.exists():
+        raise FileNotFoundError(f"UseROCasmMainLoop: module not found: {resolved}")
+
+    spec = importlib.util.spec_from_file_location("_rocasm_user_mainloop", str(resolved))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    if not hasattr(mod, "get_main_loop"):
+        raise AttributeError(
+            f"UseROCasmMainLoop: module {resolved} does not define get_main_loop()")
+
+    user_main_loop = mod.get_main_loop()
+    return prefix + user_main_loop + suffix
+
 def writeAssembly(asmPath: Union[Path, str], result: KernelCodeGenResult):
     if result.err:
         printExit(f"Failed to build kernel {result.name} because it has error code {result.err}")
@@ -266,6 +358,11 @@ def writeAssembly(asmPath: Union[Path, str], result: KernelCodeGenResult):
         src = result.src
         if isinstance(src, bytes):
             src = memDecompress(src)
+        if result.generateROCasm:
+            mainloopPath = Path(asmPath) / f"{result.name}_mainloop.py"
+            src = _generateROCasmMainloop(src, mainloopPath)
+        if result.useROCasmMainLoop:
+            src = _useROCasmMainloop(src, result.useROCasmMainLoop)
         f.write(src)
 
     minResult = KernelMinResult(result.err, result.cuoccupancy, result.pgr, result.mathclk)

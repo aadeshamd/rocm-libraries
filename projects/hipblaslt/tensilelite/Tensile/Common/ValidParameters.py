@@ -915,6 +915,14 @@ validParameters = { # we need to make sure this matches develop
     # 0  : disable CMS even if supported
     # 1  : enable  CMS, is set to 0 if not supported
     "UseCustomMainLoopSchedule" : [-1, 0, 1],
+    # Generate a rocasm Python mainloop file alongside the .s kernel
+    # When True, the main loop text is extracted, placed in a get_main_loop() function,
+    # and the .s file is built by calling that function (proving the round-trip).
+    "GenerateROCasm": [True, False],
+    # Path to a rocasm Python mainloop file to use instead of the generated main loop.
+    # The module must define get_main_loop() returning the main loop assembly text.
+    # Empty string (default) means disabled.
+    "UseROCasmMainLoop": -1,
     "AdaptiveGemm": [0, 1],
     # Add extra latency to calculate number of MFMA to insert between local read and wait
     # Negative value means reduce interval between local read and wait (for DirectToVgpr only)
