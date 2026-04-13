@@ -1903,6 +1903,90 @@ def test_streamk_fp4():
 
         yield k
 
+    yield GEMMRun(
+        M=128,
+        N=128,
+        K=369408,
+        beta=0.0,
+        mac_m=32,
+        mac_n=128,
+        mac_k=256,
+        wave_m=16,
+        wave_n=16,
+        wave_k=128,
+        wave_b=1,
+        workgroup_size_x=64,
+        workgroup_size_y=4,
+        load_A="BufferToVGPR",
+        load_B="BufferToVGPR",
+        loadScale_A="BufferToVGPR",
+        loadScale_B="BufferToVGPR",
+        store="VGPRToGlobalMemoryWithBuffer",
+        prefetch=True,
+        prefetchInFlight=2,
+        prefetchLDSFactor=2,
+        prefetchScale=True,
+        swizzleScale=True,
+        prefetchMixMemOps=True,
+        betaInFma=True,
+        streamK="TwoTile",
+        scheduler="Priority",
+        schedulerCost="LinearWeightedSimpleStreamK",
+        types=TypeParameters(
+            trans_A="T",
+            trans_B="N",
+            type_A="fp4",
+            type_B="fp4",
+            type_C="half",
+            type_D="half",
+            type_acc="float",
+            scale_A="Separate",
+            scaleType_A="E8M0",
+            scale_B="Separate",
+            scaleType_B="E8M0",
+            scaleBlockSize=32,
+            scaleSkipPermlane="PreSwizzleScaleGFX950",
+        ),
+        swizzleTileSize=MKNLTuple(32, 8, 32, 8),
+        numOuter=1,
+        numWarmUp=1000,
+        numInner=1000,
+    )
+
+
+def hgemm_streamk_twotile_mi210():
+    yield GEMMRun(
+        M=128,
+        N=128,
+        K=369408,
+        mac_m=32,
+        mac_n=128,
+        mac_k=64,       # 256 would require ~160KB LDS; 64 uses 40KB, fits in MI210's 64KB limit
+        wave_m=16,
+        wave_n=16,
+        wave_k=16,
+        workgroup_size_x=64,
+        workgroup_size_y=4,
+        store="VGPRToGlobalMemoryWithBuffer",
+        prefetch=True,
+        prefetchInFlight=2,
+        prefetchLDSFactor=2,
+        betaInFma=True,
+        streamK="TwoTile",
+        scheduler="Priority",
+        types=TypeParameters(
+            trans_A="T",
+            trans_B="N",
+            type_A="half",
+            type_B="half",
+            type_C="half",
+            type_D="half",
+        ),
+        numOuter=1,
+        numWarmUp=1000,
+        numInner=1000,
+    )
+
 
 def fp4_target_sweep_wgms():
     for wgm_dim in [0, 1]:
