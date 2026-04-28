@@ -27,6 +27,7 @@
 #include "handle.h"
 #include "definitions.h"
 #include "logging.h"
+#include "nan_check.h"
 #include "rocroller_host.hpp"
 
 #include <hip/hip_runtime.h>
@@ -69,6 +70,17 @@ _rocblaslt_handle::_rocblaslt_handle()
         useRocRoller = -1;
     }
 #endif
+
+    // NaN detection — reads HIPBLASLT_NAN_CHECK; no-op if unset or 0.
+    nancheck_init(&nan_check);
+}
+
+/*******************************************************************************
+ * _rocblaslt_handle destructor
+ ******************************************************************************/
+_rocblaslt_handle::~_rocblaslt_handle()
+{
+    nancheck_destroy(&nan_check);
 }
 
 /*******************************************************************************

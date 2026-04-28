@@ -31,6 +31,7 @@
 
 #include "rocblaslt.h"
 //#include "rocblaslt_ostream.hpp"
+#include "nan_check.h"
 #include <fstream>
 #include <hip/hip_runtime_api.h>
 #include <iostream>
@@ -81,7 +82,7 @@ struct _rocblaslt_handle
     // constructor
     _rocblaslt_handle();
     // destructor
-    ~_rocblaslt_handle() = default;
+    ~_rocblaslt_handle();
 
     // device id
     int device;
@@ -95,6 +96,9 @@ struct _rocblaslt_handle
     void* Synchronizer = nullptr;
     // pointer mode ; default mode is host
     rocblaslt_pointer_mode pointer_mode = rocblaslt_pointer_mode_host;
+
+    // NaN detection state (zero-overhead when HIPBLASLT_NAN_CHECK=0)
+    NanCheckState nan_check;
 
 #ifdef HIPBLASLT_USE_ROCROLLER
     void* rocroller_handle = nullptr;

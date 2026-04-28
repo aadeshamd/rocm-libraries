@@ -26,6 +26,7 @@
 
 #include "definitions.h"
 #include "handle.h"
+#include "nan_check.h"
 #include "rocblaslt_mat_utils.hpp"
 #include "tensile_host.hpp"
 #include <array>
@@ -222,7 +223,24 @@ rocblaslt_status rocblaslt_matmul_impl(const rocblaslt_handle       handle,
                                         swizzleB,
                                         batch_mode};
 
-    return runContractionProblem(handle, algo, problem, gemmData);
+    rocblaslt_status status = runContractionProblem(handle, algo, problem, gemmData);
+
+    // Post-GEMM NaN scan — no-op when HIPBLASLT_NAN_CHECK=0.
+    if(handle->nan_check.enabled())
+    {
+        int32_t algo_idx = algo ? *reinterpret_cast<const int*>(algo->data) : 0;
+        nancheck_post_gemm(&handle->nan_check,
+                           D,
+                           m * n * (int64_t)num_batches_a,
+                           type_d,
+                           algo_idx,
+                           m,
+                           n,
+                           k,
+                           stream);
+    }
+
+    return status;
 }
 
 rocblaslt_status rocblaslt_gemm_create_cpp_impl(const rocblaslt_handle           handle,
